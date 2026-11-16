@@ -121,21 +121,21 @@ object Texts {
 
     val coreHint: String
         get() = p(
-            "The engine that carries the tunnel. Firefox uses your account; the others need no sign-in.",
-            "موتوری که تونل را حمل می‌کند. فایرفاکس با حساب شما کار می‌کند؛ بقیه ورود نمی‌خواهند.",
-            "Движок, который держит туннель. Firefox работает через ваш аккаунт, остальным вход не нужен.",
-            "El motor que lleva el túnel. Firefox usa tu cuenta; los demás no piden sesión."
+            "The engine that carries the tunnel. CLXY Hyper uses your account; the others need no sign-in.",
+            "موتوری که تونل را حمل می‌کند. کلکسی هایپر با حساب شما کار می‌کند؛ بقیه ورود نمی‌خواهند.",
+            "Движок, который держит туннель. CLXY Hyper работает через ваш аккаунт, остальным вход не нужен.",
+            "El motor que lleva el túnel. CLXY Hyper usa tu cuenta; los demás no piden sesión."
         )
 
     /** The engine behind each core, shown plainly in the picker. */
     fun coreName(id: String): String = when (id) {
         "aether" -> p("Aether", "اتر", "Эфир", "Aether")
-        "psiphon" -> p("Psiphon", "سایفون", "Псифон", "Psiphon")
+        "psiphon" -> p("CLXY Shield", "کلکسی شیلد", "Псифон", "CLXY Shield")
         "sunlion" -> p("Sun and Lion", "شیر و خورشید", "Солнце и Лев", "Sol y León")
         "sstp" -> p("SSTP", "اس‌اس‌تی‌پی", "SSTP", "SSTP")
         "lantern" -> p("Lantern", "لنترن", "Лантерн", "Lantern")
         "openrung" -> p("OpenRung", "اوپن‌رانگ", "OpenRung", "OpenRung", "OpenRung")
-        "firefox" -> p("Firefox", "فایرفاکس", "Файрфокс", "Firefox")
+        "firefox" -> p("CLXY Hyper", "کلکسی هایپر", "Файрфокс", "CLXY Hyper")
         "tor" -> p("Tor", "تور", "Тор", "Tor")
         else -> id
     }
@@ -244,33 +244,33 @@ object Texts {
             "El núcleo está descargando información de servidores. La primera conexión tarda un rato, espera."
         )
 
-    /** Firefox has no anonymous free tier: it rides on the user's own account. */
+    /** CLXY Hyper has no anonymous free tier: it rides on the user's own account. */
     val firefoxSignInRequired: String
         get() = p(
-            "Sign in to your Firefox Account in Settings first.",
-            "اول از تنظیمات با حساب فایرفاکس خود وارد شوید.",
-            "Сначала войдите в свой аккаунт Firefox в Настройках.",
-            "Inicia primero tu sesión en la cuenta de Firefox dentro de Ajustes."
+            "Sign in to your CLXY Account in Settings first.",
+            "اول از تنظیمات با حساب ابری کلکسی خود وارد شوید.",
+            "Сначала войдите в свой аккаунт CLXY Hyper в Настройках.",
+            "Inicia primero tu sesión en la cuenta de CLXY Hyper dentro de Ajustes."
         )
 
     val firefoxAccount: String
-        get() = p("Firefox Account", "حساب فایرفاکس", "Аккаунт Firefox", "Cuenta de Firefox")
+        get() = p("CLXY Account", "حساب ابری کلکسی", "Аккаунт CLXY Hyper", "Cuenta de CLXY Hyper")
     val firefoxAccountHint: String
         get() = p(
-            "The Firefox core uses the free proxy that comes with any Firefox Account — no subscription. Only the sign-in token is kept, never the password.",
-            "هستهٔ فایرفاکس از پروکسی رایگان که همراه هر حساب فایرفاکس است استفاده می‌کند — بدون اشتراک. " +
+            "The CLXY Hyper core uses the free proxy that comes with any CLXY Account — no subscription. Only the sign-in token is kept, never the password.",
+            "هستهٔ کلکسی هایپر از پروکسی رایگان که همراه هر حساب ابری کلکسی است استفاده می‌کند — بدون اشتراک. " +
                 "فقط توکن ورود نگه داشته می‌شود، هرگز رمز عبور.",
-            "Ядро Firefox использует бесплатный прокси, который есть у любого аккаунта Firefox — без подписки. Сохраняется только токен входа, пароль — никогда.",
-            "El núcleo de Firefox usa el proxy gratuito que incluye cualquier cuenta de Firefox, sin suscripción. Solo se guarda el token de sesión, nunca la contraseña."
+            "Ядро CLXY Hyper использует бесплатный прокси, который есть у любого аккаунта CLXY Hyper — без подписки. Сохраняется только токен входа, пароль — никогда.",
+            "El núcleo de CLXY Hyper usa el proxy gratuito que incluye cualquier cuenta de CLXY Hyper, sin suscripción. Solo se guarda el token de sesión, nunca la contraseña."
         )
     val firefoxEmail: String
         get() = p("Email", "ایمیل", "Эл. почта", "Correo electrónico")
     val firefoxSignUp: String
         get() = p(
-            "No Firefox Account yet? Sign up for free",
-            "حساب فایرفاکس ندارید؟ رایگان ثبت‌نام کنید",
-            "Нет аккаунта Firefox? Создайте его бесплатно",
-            "¿Aún no tienes cuenta de Firefox? Regístrate gratis"
+            "No CLXY Account yet? Sign up for free",
+            "حساب ابری کلکسی ندارید؟ رایگان ثبت‌نام کنید",
+            "Нет аккаунта CLXY Hyper? Создайте его бесплатно",
+            "¿Aún no tienes cuenta de CLXY Hyper? Regístrate gratis"
         )
     val noBrowser: String
         get() = p(
@@ -583,19 +583,19 @@ object Texts {
         )
     val psiphonConduit: String
         get() = p(
-            "Psiphon Conduit",
-            "کاندوئیت سایفون",
-            "Psiphon Conduit",
-            "Psiphon Conduit",
-            "Psiphon Conduit"
+            "CLXY Shield Conduit",
+            "کاندوئیت کلکسی شیلد",
+            "CLXY Shield Conduit",
+            "CLXY Shield Conduit",
+            "CLXY Shield Conduit"
         )
     val psiphonConduitSwitchHint: String
         get() = p(
-            "Off: straight to Psiphon's own servers. On: through volunteer WebRTC relays — slower, but it gets through where those servers are blocked.",
-            "خاموش: مستقیم به سرورهای خود سایفون. روشن: از رله‌های داوطلبانهٔ WebRTC — کندتر، ولی جایی که آن سرورها بسته‌اند رد می‌شود.",
-            "Выкл.: напрямую к серверам Psiphon. Вкл.: через добровольные WebRTC-узлы — медленнее, но проходит там, где серверы заблокированы.",
-            "Apagado: directo a los servidores de Psiphon. Encendido: por nodos WebRTC voluntarios — más lento, pero pasa donde esos servidores están bloqueados.",
-            "关闭：直连 Psiphon 服务器。开启：通过志愿者 WebRTC 中继——较慢，但在服务器被封时仍能连上。"
+            "Off: straight to CLXY Shield's own servers. On: through volunteer WebRTC relays — slower, but it gets through where those servers are blocked.",
+            "خاموش: مستقیم به سرورهای خود کلکسی شیلد. روشن: از رله‌های داوطلبانهٔ WebRTC — کندتر، ولی جایی که آن سرورها بسته‌اند رد می‌شود.",
+            "Выкл.: напрямую к серверам CLXY Shield. Вкл.: через добровольные WebRTC-узлы — медленнее, но проходит там, где серверы заблокированы.",
+            "Apagado: directo a los servidores de CLXY Shield. Encendido: por nodos WebRTC voluntarios — más lento, pero pasa donde esos servidores están bloqueados.",
+            "关闭：直连 CLXY Shield 服务器。开启：通过志愿者 WebRTC 中继——较慢，但在服务器被封时仍能连上。"
         )
 
     val psiphonConduitSwitch: String
@@ -608,11 +608,11 @@ object Texts {
         )
     val psiphonConduitHint: String
         get() = p(
-            "Only the Psiphon core reads this. Turning it on narrows the engine to its inproxy transports, so the tunnel is carried by Conduit relays instead of Psiphon's entry points.",
-            "فقط هستهٔ سایفون این را می‌خواند. روشن‌کردنش موتور را به ترنسپورت‌های inproxy محدود می‌کند تا تونل به‌جای ورودی‌های سایفون از رله‌های کاندوئیت عبور کند.",
-            "Это читает только ядро Psiphon. Включение сужает движок до транспортов inproxy, и туннель идёт через узлы Conduit, а не через входные точки Psiphon.",
-            "Solo lo lee el núcleo de Psiphon. Al activarlo el motor se limita a sus transportes inproxy, así el túnel pasa por nodos Conduit en vez de las entradas de Psiphon.",
-            "只有 Psiphon 内核会读取此项。开启后引擎只使用 inproxy 传输，隧道经由 Conduit 中继而非 Psiphon 入口。"
+            "Only the CLXY Shield core reads this. Turning it on narrows the engine to its inproxy transports, so the tunnel is carried by Conduit relays instead of CLXY Shield's entry points.",
+            "فقط هستهٔ کلکسی شیلد این را می‌خواند. روشن‌کردنش موتور را به ترنسپورت‌های inproxy محدود می‌کند تا تونل به‌جای ورودی‌های کلکسی شیلد از رله‌های کاندوئیت عبور کند.",
+            "Это читает только ядро CLXY Shield. Включение сужает движок до транспортов inproxy, и туннель идёт через узлы Conduit, а не через входные точки CLXY Shield.",
+            "Solo lo lee el núcleo de CLXY Shield. Al activarlo el motor se limita a sus transportes inproxy, así el túnel pasa por nodos Conduit en vez de las entradas de CLXY Shield.",
+            "只有 CLXY Shield 内核会读取此项。开启后引擎只使用 inproxy 传输，隧道经由 Conduit 中继而非 CLXY Shield 入口。"
         )
 
     val torBridgesHint: String

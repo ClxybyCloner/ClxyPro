@@ -254,7 +254,7 @@ private fun TopBar(onOpenTools: () -> Unit, onOpenSettings: () -> Unit) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CorePicker(state: AppState.State, enabled: Boolean) {
-    val cores = CoreRegistry.cores
+    val cores = CoreRegistry.all()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -289,46 +289,6 @@ private fun CorePicker(state: AppState.State, enabled: Boolean) {
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun ServerChip(coreId: String, enabled: Boolean) {
-    var pickerOpen by remember { mutableStateOf(false) }
-    val choice = ServerChoice.chosen(coreId)
-    val label = if (choice.isBlank()) Texts.auto else ServerChoice.describe(coreId, choice)
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = ClxyColors.CardSurface,
-        border = BorderStroke(1.dp, ClxyColors.GlassBorder),
-        modifier = Modifier.clickable(enabled = enabled) { pickerOpen = true },
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-        ) {
-            CircularCountryFlag(
-                countryCode = if (choice.isBlank()) "AUTO" else choice,
-                size = 18.dp,
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = ClxyColors.TextSecondary,
-            )
-        }
-    }
-    if (pickerOpen) {
-        ServerPicker(
-            coreId = coreId,
-            chosen = choice,
-            onPick = { chosen ->
-                ServerChoice.choose(coreId, chosen)
-                pickerOpen = false
-            },
-            onDismiss = { pickerOpen = false },
-        )
     }
 }
 
