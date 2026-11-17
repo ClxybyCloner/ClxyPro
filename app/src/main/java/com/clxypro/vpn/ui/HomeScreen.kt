@@ -87,7 +87,6 @@ fun HomeScreen(
     state: AppState.State,
     onToggle: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenTools: () -> Unit,
     onOpenServers: () -> Unit,
     onOpenAccounts: () -> Unit,
     onOpenSignIn: () -> Unit,

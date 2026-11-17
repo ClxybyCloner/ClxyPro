@@ -8,15 +8,9 @@ import com.clxypro.vpn.core.CoreRegistry
 import com.clxypro.vpn.core.CrashGuard
 import com.clxypro.vpn.core.FirefoxCore
 import com.clxypro.vpn.core.GithubUpdates
-import com.clxypro.vpn.core.LanternCore
 import com.clxypro.vpn.core.LogRetention
 import com.clxypro.vpn.core.NetworkMonitor
-import com.clxypro.vpn.core.OpenRungCore
 import com.clxypro.vpn.core.Prefs
-import com.clxypro.vpn.core.PsiphonCore
-import com.clxypro.vpn.core.SstpCore
-import com.clxypro.vpn.core.SunAndLionCore
-import com.clxypro.vpn.core.TorCore
 
 class App : Application() {
     override fun onCreate() {

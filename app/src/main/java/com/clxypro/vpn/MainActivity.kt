@@ -47,7 +47,6 @@ import com.clxypro.vpn.ui.MainTab
 import com.clxypro.vpn.ui.DiagnosticsLogsDialog
 import com.clxypro.vpn.ui.ProfileScreen
 import com.clxypro.vpn.ui.ServersScreen
-import com.clxypro.vpn.ui.ToolsScreen
 import com.clxypro.vpn.vpn.Store
 
 class MainActivity : ComponentActivity() {
@@ -103,16 +102,13 @@ class MainActivity : ComponentActivity() {
                 var state by remember { mutableStateOf(AppState.state) }
                 var activeTab by remember { mutableStateOf(MainTab.HOME) }
                 var logsOpen by remember { mutableStateOf(false) }
-                var toolsOpen by remember { mutableStateOf(false) }
 
                 DisposableEffect(Unit) {
                     val stop = AppState.listen { state = it }
                     onDispose { stop() }
                 }
 
-                if (toolsOpen) {
-                    BackHandler { toolsOpen = false }
-                } else if (activeTab != MainTab.HOME) {
+                if (activeTab != MainTab.HOME) {
                     BackHandler { activeTab = MainTab.HOME }
                 }
 
@@ -121,13 +117,11 @@ class MainActivity : ComponentActivity() {
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets.statusBars,
                         bottomBar = {
-                            if (!toolsOpen) {
-                                ClxyBottomNavBar(
-                                    activeTab = activeTab,
-                                    onSelectTab = { activeTab = it },
-                                    isQuantum = state.coreId == "aether",
-                                )
-                            }
+                            ClxyBottomNavBar(
+                                activeTab = activeTab,
+                                onSelectTab = { activeTab = it },
+                                isQuantum = state.coreId == "aether",
+                            )
                         },
                     ) { innerPadding ->
                         Box(
@@ -137,8 +131,6 @@ class MainActivity : ComponentActivity() {
                         ) {
                             if (logsOpen) {
                                 DiagnosticsLogsDialog(state = state, onDismiss = { logsOpen = false })
-                            } else if (toolsOpen) {
-                                ToolsScreen(onBack = { toolsOpen = false })
                             } else {
                                 AnimatedContent(
                                     targetState = activeTab,
@@ -154,7 +146,6 @@ class MainActivity : ComponentActivity() {
                                             state = state,
                                             onToggle = { toggle { activeTab = MainTab.PROFILE } },
                                             onOpenSettings = { activeTab = MainTab.PROFILE },
-                                            onOpenTools = { toolsOpen = true },
                                             onOpenServers = { activeTab = MainTab.SERVERS },
                                             onOpenAccounts = { activeTab = MainTab.ACCOUNTS },
                                             onOpenSignIn = {
