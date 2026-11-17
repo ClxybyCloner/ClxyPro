@@ -17,7 +17,11 @@ import java.net.Socket
  */
 class AetherCore : VpnCore {
     override val id = "aether"
-    override val proxyAddress get() = Prefs.socksAddress
+    override val proxyAddress get() = "$LOOPBACK:$socksPortUsed"
+
+    /** The SOCKS port the engine actually bound (1080 unless it was busy). */
+    @Volatile
+    private var socksPortUsed: Int = Prefs.socksPort
 
     @Volatile
     private var context: Context? = null
@@ -65,6 +69,10 @@ class AetherCore : VpnCore {
         stopping = false
         stopVpn()
         discoveredPeer = null
+        // Same bind failure as the Firefox core: reap a previous run's
+        // orphaned engine, then bind a port that is actually free.
+        EngineProc.reapOrphanedEngines { AppState.log("engine $id: $it") }
+        socksPortUsed = LocalPorts.resolve(Prefs.socksPort) { AppState.log("engine $id: $it") }
 
         // 1. FAST RECONNECT: Check if we have a previously cached working peer
         val cached = prefs.getString(KEY_CACHED_PEER, null)
@@ -258,7 +266,7 @@ class AetherCore : VpnCore {
     private fun automaticArgs(): List<String> = commonArgs() + listOf("--masque", "--h3")
 
     private fun commonArgs(): List<String> = listOf(
-        "--bind", Prefs.socksAddress,
+        "--bind", "$LOOPBACK:$socksPortUsed",
         "--config", File(workDir, IDENTITY_FILE).absolutePath,
         "--log-level", "info",
         "--scan", "balanced"
@@ -275,7 +283,7 @@ class AetherCore : VpnCore {
               icmp: 'reply'
             socks5:
               address: $LOOPBACK
-              port: ${Prefs.socksPort}
+              port: $socksPortUsed
               udp: 'udp'
             misc:
               task-stack-size: 32768

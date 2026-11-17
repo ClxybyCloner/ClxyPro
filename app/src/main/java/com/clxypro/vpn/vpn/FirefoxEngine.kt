@@ -6,6 +6,7 @@ import android.util.Log
 import com.clxypro.vpn.R
 import com.clxypro.vpn.core.CaBundle
 import com.clxypro.vpn.core.EngineProc
+import com.clxypro.vpn.core.LocalPorts
 import com.clxypro.vpn.core.Prefs
 import java.io.File
 
@@ -36,6 +37,11 @@ class FirefoxEngine(private val context: Context) {
     var selected: Candidate? = null
         private set
 
+    /** The SOCKS port the engine actually bound (1080 unless it was busy). */
+    @Volatile
+    var socksPortUsed: Int = Prefs.socksPort
+        private set
+
     /**
      * Blocking. Returns null on success, otherwise a human-readable error.
      * [onStage] receives the same stage names the other cores report, so the
@@ -46,6 +52,9 @@ class FirefoxEngine(private val context: Context) {
         stopping = false
         if (!binary.exists()) return context.getString(R.string.error_engine_missing)
         if (!Store.hasSession(context)) return context.getString(R.string.error_sign_in)
+        // A previous run's orphaned engine still holds the SOCKS port when
+        // the app was killed without a disconnect; reap it before dialling.
+        EngineProc.reapOrphanedEngines { Logs.add("vpn", it) }
 
         val ranked: List<Candidate>
         if (pinned != null) {
@@ -91,7 +100,11 @@ class FirefoxEngine(private val context: Context) {
         listening = false
         lastLine = ""
 
-        val port = Prefs.socksPort
+        // Never bind a port that is already taken: the engine would exit(1)
+        // and every retry would fail the same way. The bridge, watchdog and
+        // reachability checks all read the actual port back via the core.
+        val port = LocalPorts.resolve(Prefs.socksPort) { Logs.add("vpn", it) }
+        socksPortUsed = port
         val args = mutableListOf(
             binary.absolutePath,
             "--session-token-file", Store.sessionFile(context).absolutePath,

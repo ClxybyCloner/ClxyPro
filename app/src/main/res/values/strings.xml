@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">ClxyPro</string>
+    <string name="tile_label" translatable="false">CLXY VPN</string>
     <string name="notification_channel">Tunnel</string>
     <string name="notification_connecting">Building the tunnel…</string>
     <string name="notification_connected">Tunnel is up</string>

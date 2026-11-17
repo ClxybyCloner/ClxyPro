@@ -321,8 +321,11 @@ class TunnelVpnService : VpnService() {
                     Notifications.build(this, Texts.appName, Texts.notificationVpn)
                 )
                 ConnectSound.ping(this)
+                // Watch the port the core actually bound, not the preferred
+                // one (see ProxyService).
+                val corePort = coreProxy.substringAfterLast(':').toIntOrNull() ?: Prefs.socksPort
                 TunnelWatchdog.start(
-                    Prefs.socksPort,
+                    corePort,
                     selected.trafficProbeTimeoutMs
                 ) { fail(StatusText.NO_TRAFFIC, "no traffic through the tunnel", gen) }
             }

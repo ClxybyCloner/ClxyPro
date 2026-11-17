@@ -66,6 +66,36 @@ object EngineProc {
         runCatching { child.isAlive }.getOrDefault(true)
 
     /**
+     * Kills engine children orphaned by a past run: when the app process dies
+     * without a disconnect (swiped away, crashed, killed by the system), its
+     * engine child survives, keeps holding the SOCKS port, and the next
+     * connect fails to bind it. Only orphans are reaped — a child whose
+     * parent is still alive (ppid != 1) belongs to a live session.
+     * Best-effort: /proc may be restricted, and a kill may be refused.
+     */
+    fun reapOrphanedEngines(log: (String) -> Unit) {
+        val self = android.os.Process.myPid()
+        val proc = runCatching { java.io.File("/proc").listFiles() }.getOrNull() ?: return
+        proc.forEach { dir ->
+            val pid = dir.name.toIntOrNull() ?: return@forEach
+            if (pid == self) return@forEach
+            val stat = runCatching { java.io.File(dir, "stat").readText() }.getOrNull() ?: return@forEach
+            val closeParen = stat.lastIndexOf(')')
+            if (closeParen < 0) return@forEach
+            val comm = stat.substring(stat.indexOf('(') + 1, closeParen)
+            if (!comm.contains("ffvpn") && !comm.contains("aether")) return@forEach
+            // Fields after ") ": state ppid ...
+            val ppid = stat.substring(closeParen + 2).split(' ').getOrNull(1)?.toIntOrNull()
+                ?: return@forEach
+            if (ppid != 1) return@forEach
+            runCatching {
+                android.os.Process.killProcess(pid)
+                log("reaped orphaned engine process $pid ($comm)")
+            }
+        }
+    }
+
+    /**
      * Stops a short-lived engine command. The pipe is drained to EOF before it is
      * closed: a Go or Rust engine that is still printing when the read end goes
      * away dies in native code, and the app would lose the result line too.

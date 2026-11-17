@@ -14,7 +14,8 @@ import java.io.File
  */
 class FirefoxCore : VpnCore {
     override val id = "firefox"
-    override val proxyAddress get() = Prefs.socksAddress
+    override val proxyAddress
+        get() = engine?.socksPortUsed?.let { "$LOOPBACK:$it" } ?: Prefs.socksAddress
 
     /**
      * The engine answers DNS from the bridge's mapped cache at 9.9.9.9, so that
@@ -137,7 +138,7 @@ class FirefoxCore : VpnCore {
               icmp: 'reply'
             socks5:
               address: $LOOPBACK
-              port: ${Prefs.socksPort}
+              port: ${engine?.socksPortUsed ?: Prefs.socksPort}
               udp: 'udp'
             mapdns:
               address: 9.9.9.9

@@ -316,7 +316,11 @@ class ProxyService : Service() {
         if (Prefs.shareLan) {
             LanShare.start(coreProxy)
         }
-        TunnelWatchdog.start(Prefs.socksPort, selected.trafficProbeTimeoutMs) {
+        // Watch the port the core actually bound, not the preferred one:
+        // when 1080 was busy the engine moved and the watchdog would
+        // otherwise probe a dead port and kill a healthy tunnel.
+        val corePort = coreProxy.substringAfterLast(':').toIntOrNull() ?: Prefs.socksPort
+        TunnelWatchdog.start(corePort, selected.trafficProbeTimeoutMs) {
             fail("no traffic through the tunnel", gen)
         }
     }

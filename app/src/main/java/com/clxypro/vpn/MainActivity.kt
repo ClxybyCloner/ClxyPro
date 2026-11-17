@@ -50,10 +50,18 @@ import com.clxypro.vpn.ui.ServersScreen
 import com.clxypro.vpn.vpn.Store
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        /** Set by the Quick Settings tile: run the normal toggle once the UI is up. */
+        const val EXTRA_AUTO_CONNECT = "clxy_auto_connect"
+    }
+
     private var pendingConnect = false
 
     /** Quantum serial prompt; raised by toggle() on first Quantum connect. */
     private val serialDialogOpen = mutableStateOf(false)
+
+    /** Bumped whenever an auto-connect request arrives (tile tap). */
+    private val autoConnectTick = mutableStateOf(0)
 
     /** The system VPN consent dialog; the tunnel only starts on RESULT_OK. */
     private val consent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -90,8 +98,19 @@ class MainActivity : ComponentActivity() {
         AppLocale.sync(this)
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_AUTO_CONNECT, false)) {
+            autoConnectTick.value += 1
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent.getBooleanExtra(EXTRA_AUTO_CONNECT, false)) {
+            autoConnectTick.value = 1
+        }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         // Says which way the screen is laid out, so a language that did not take
         // effect shows up in the log instead of only on the screen.
@@ -114,6 +133,18 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.runtime.LaunchedEffect(state.coreId) {
                     if (state.coreId == "aether") {
                         activeTab = MainTab.HOME
+                    }
+                }
+
+                // Quick Settings tile tap: run the same toggle the power
+                // button runs (sign-in / serial / VPN consent included),
+                // but only when actually disconnected.
+                androidx.compose.runtime.LaunchedEffect(autoConnectTick.value) {
+                    if (autoConnectTick.value > 0) {
+                        val current = AppState.state
+                        if (!current.connected && !current.running && !current.busy && !current.disconnecting) {
+                            toggle { activeTab = MainTab.PROFILE }
+                        }
                     }
                 }
 
