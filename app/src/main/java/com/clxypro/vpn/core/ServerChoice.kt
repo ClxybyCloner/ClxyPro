@@ -23,7 +23,7 @@ data class ServerOption(
  * is kept per core in [Prefs]; an empty key means Auto — scan, rank, dial.
  */
 object ServerChoice {
-    private val SELECTABLE = setOf("firefox", "lantern", "sstp", "openrung")
+    private val SELECTABLE = setOf("firefox", "lantern", "sstp", "openrung", "sunlion")
 
     // The last test per core, kept beyond the picker's own lifetime so reopening
     // it shows the same order, speeds and reachable set instead of the raw list.
@@ -48,14 +48,14 @@ object ServerChoice {
             "lantern" -> LanternServers.readCache(LanternServers.workDir(context)).map { lanternOption(it) }
             "openrung" -> OpenRungServers.readCache(OpenRungServers.workDir(context)).map { openRungOption(it) }
             "sstp" -> sstpOptions(context)
+            "sunlion" -> sunlionOptions(context)
             else -> emptyList()
         }
         return list.distinctBy { it.key }.sortedWith(compareBy({ it.label.lowercase() }, { it.key }))
     }
 
     /**
-     * Re-reads the list from the core's own source. SSTP has no fetch of its
-     * own: its list is the packaged file or whatever the VPN Gate card applied.
+     * Re-reads the list from the core's own source.
      */
     fun refresh(
         context: Context,
@@ -71,6 +71,35 @@ object ServerChoice {
             "openrung" -> OpenRungServers.fetch(
                 OpenRungServers.binary(context), OpenRungServers.workDir(context), stop, log
             )
+            "sstp" -> {
+                val freshGate = runCatching { VpnGate.fetch(log) }.getOrDefault(emptyList())
+                val nonRestricted = freshGate.filterNot(VpnGate::isRestricted)
+                if (nonRestricted.isNotEmpty()) {
+                    SstpRelays.apply(context, nonRestricted.map { it.endpoint }.distinct().take(40))
+                }
+            }
+            "sunlion" -> {
+                val presets = SunAndLionScanner.presets()
+                val expanded = EdgeScanner.expand(presets.flatMap { it.ranges }.take(15), EdgeMode.QUICK)
+                val hits = EdgeScanner.scan(
+                    expanded,
+                    presets.flatMap { it.snis }.distinct(),
+                    presets.flatMap { it.hosts }.distinct(),
+                    concurrency = 6,
+                    mode = EdgeMode.QUICK,
+                    stop = stop
+                )
+                if (hits.isNotEmpty()) {
+                    val store = SunAndLionStore(context)
+                    store.saveScan(
+                        SunAndLionCandidates(
+                            hits.map { it.ip }.distinct().take(10),
+                            hits.map { it.sni }.distinct().take(5),
+                            hits.map { it.host }.distinct().take(5)
+                        )
+                    )
+                }
+            }
         }
         return options(context, coreId)
     }
@@ -238,5 +267,21 @@ object ServerChoice {
     private fun sstpOptions(context: Context): List<ServerOption> {
         val countries = VpnGate.loadCache(context).associateBy({ it.key }, { it.country })
         return SstpScanner.loadEndpoints(context).map { sstpOption(it, countries[it.toString()].orEmpty()) }
+    }
+
+    private fun sunlionOptions(context: Context): List<ServerOption> {
+        val store = SunAndLionStore(context)
+        val saved = store.load()
+        if (saved == null || saved.ips.isEmpty()) {
+            return listOf(
+                ServerOption("auto_edge", "Cloudflare · Auto Edge", "Fast Anycast CDN Edge", reachable = true),
+                ServerOption("fastly_edge", "Fastly · Global Edge", "High Performance CDN", reachable = true),
+                ServerOption("gcore_edge", "G-Core · Anycast Edge", "Low Latency Routing", reachable = true)
+            )
+        }
+        return saved.ips.mapIndexed { idx, ip ->
+            val host = saved.hosts.getOrNull(idx) ?: saved.snis.getOrNull(idx) ?: "CDN Edge"
+            ServerOption(ip, "Edge Node #$ip", host, reachable = true)
+        }
     }
 }

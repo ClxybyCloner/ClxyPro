@@ -95,7 +95,6 @@ import com.clxypro.vpn.R
 import com.clxypro.vpn.Texts
 import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.CoreRegistry
-import com.clxypro.vpn.core.GithubRelease
 import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.core.TorBridges
@@ -1404,20 +1403,13 @@ fun DiagnosticsLogsDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    var logs by remember { mutableStateOf(Logs.all()) }
+    val logs by Logs.lines.collectAsState()
     var search by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
-    DisposableEffect(Unit) {
-        val stop = Logs.listen {
-            logs = Logs.all()
-        }
-        onDispose { stop() }
-    }
-
     val filteredLogs = remember(logs, search) {
         val q = search.trim().lowercase()
-        if (q.isEmpty()) logs else logs.filter { it.text.lowercase().contains(q) }
+        if (q.isEmpty()) logs else logs.filter { it.message.lowercase().contains(q) || it.tag.lowercase().contains(q) }
     }
 
     Dialog(
@@ -1452,7 +1444,7 @@ fun DiagnosticsLogsDialog(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         IconButton(
                             onClick = {
-                                val text = filteredLogs.joinToString("\n") { it.text }
+                                val text = filteredLogs.joinToString("\n") { it.toString() }
                                 val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 cm.setPrimaryClip(ClipData.newPlainText("CLXY Logs", text))
                                 Toast.makeText(context, "Logs copied to clipboard", Toast.LENGTH_SHORT).show()
@@ -1484,10 +1476,10 @@ fun DiagnosticsLogsDialog(
                 ) {
                     items(filteredLogs) { line ->
                         Text(
-                            text = line.text,
+                            text = "${line.time} [${line.tag}] ${line.message}",
                             color = when {
-                                line.text.contains("ERR", ignoreCase = true) || line.text.contains("fail", ignoreCase = true) -> ClxyColors.RedDisconnectStart
-                                line.text.contains("connected", ignoreCase = true) -> ClxyColors.EmeraldGood
+                                line.message.contains("ERR", ignoreCase = true) || line.message.contains("fail", ignoreCase = true) -> ClxyColors.RedDisconnectStart
+                                line.message.contains("connected", ignoreCase = true) || line.message.contains("ready", ignoreCase = true) -> ClxyColors.EmeraldGood
                                 else -> ClxyColors.TextDim
                             },
                             fontSize = 11.sp,
@@ -1502,12 +1494,12 @@ fun DiagnosticsLogsDialog(
 
 @Composable
 fun AppUpdateDialog(
-    update: GithubRelease?,
+    update: GithubUpdates.Release?,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
     var checking by remember { mutableStateOf(false) }
-    var currentUpdate by remember { mutableStateOf(update) }
+    var currentUpdate by remember { mutableStateOf<GithubUpdates.Release?>(update) }
     val scope = rememberCoroutineScope()
 
     Dialog(
@@ -1536,9 +1528,7 @@ fun AppUpdateDialog(
                             onClick = {
                                 scope.launch {
                                     checking = true
-                                    val res = withContext(Dispatchers.IO) {
-                                        GithubUpdates.checkLatest(context)
-                                    }
+                                    val res = runCatching { GithubUpdates.check() }.getOrNull()
                                     currentUpdate = res
                                     checking = false
                                 }
@@ -1565,15 +1555,17 @@ fun AppUpdateDialog(
                                 .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            Text("New Release Available: ${rel.tagName}", color = ClxyColors.CyanText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("New Release Available: v${rel.version}", color = ClxyColors.CyanText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             Text(
-                                text = rel.body.ifBlank { "Performance updates and security enhancements." },
+                                text = "Release tag: ${rel.tag}",
                                 color = ClxyColors.TextSecondary,
                                 fontSize = 12.sp,
                             )
                             Button(
                                 onClick = {
-                                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(rel.htmlUrl))
+                                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(rel.page)).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
                                     context.startActivity(browserIntent)
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = ClxyColors.CyanGlow),

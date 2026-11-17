@@ -84,15 +84,51 @@ class SstpCore : VpnCore {
                 return attemptFrom(0, TOTAL_BUDGET_MS)
             }
 
-            val endpoints = SstpScanner.loadEndpoints(appContext)
+            // 1. Instant connect via cached working good relay
+            val cached = prefs.lastEndpoint()?.let { SstpEndpoint.parse(it) }
+            if (cached != null) {
+                AppState.log("engine $id checking cached good relay: $cached")
+                val probe = SstpScanner.scan(listOf(cached), stop = { stopping })
+                val alive = probe.firstOrNull { it.health == SstpHealth.Alive }
+                if (alive != null && !stopping) {
+                    AppState.log("engine $id cached relay alive (${alive.latencyMs}ms), fast connecting")
+                    candidates = listOf(alive)
+                    val err = attemptFrom(0, TOTAL_BUDGET_MS)
+                    if (err == null) return null
+                    AppState.log("engine $id cached relay dial failed: $err")
+                } else {
+                    AppState.log("engine $id cached relay unreachable, clearing cache")
+                }
+                prefs.setLastEndpoint(null)
+            }
+
+            // 2. Good server lost or first time: Auto-scan & refresh
+            if (stopping) return null
+            emit(1002, "Scanning live relays...", "")
+            AppState.log("engine $id discovering and ranking working relays...")
+
+            var endpoints = SstpScanner.loadEndpoints(appContext)
+            if (!SstpRelays.isOverridden(appContext) || endpoints.size < 3) {
+                AppState.log("engine $id fetching fresh relays from VPN Gate...")
+                val freshGate = runCatching { VpnGate.fetch { AppState.log(it) } }.getOrDefault(emptyList())
+                val nonRestricted = freshGate.filterNot(VpnGate::isRestricted)
+                if (nonRestricted.isNotEmpty()) {
+                    val freshEndpoints = nonRestricted.map { it.endpoint }.distinct().take(40)
+                    SstpRelays.apply(appContext, freshEndpoints)
+                    endpoints = freshEndpoints
+                    AppState.log("engine $id auto-installed ${freshEndpoints.size} fresh relays from VPN Gate")
+                }
+            }
+
             val scanned = SstpScanner.scan(endpoints, stop = { stopping }) { AppState.log(it) }
             if (stopping) return null
-            candidates = order(scanned)
+            val alive = scanned.filter { it.health == SstpHealth.Alive }.sortedBy { it.latencyMs }
+            candidates = if (alive.isNotEmpty()) alive else scanned
             if (candidates.isEmpty()) {
                 AppState.log("engine $id scan produced no candidates")
                 return Texts.endpointNotFound
             }
-            AppState.log("engine $id trying ${candidates.size} ranked relay(s)")
+            AppState.log("engine $id trying ${candidates.size} ranked relay(s), top: ${candidates.first().endpoint}")
             return attemptFrom(0, TOTAL_BUDGET_MS)
         }
     }
@@ -201,6 +237,7 @@ class SstpCore : VpnCore {
                         if (manual) "redialling the chosen relay" else "moving to next relay"
                 )
                 connected = false
+                prefs.setLastEndpoint(null)
                 emit(1002, "reconnecting", "")
                 val error = attemptFrom(if (manual) from else from + 1, TOTAL_BUDGET_MS)
                 if (!stopping && error != null) {
@@ -375,16 +412,22 @@ class SstpCore : VpnCore {
 }
 
 /** Remembers the relay that last carried traffic so the next dial starts there. */
-private class SstpStore(context: Context) {
+class SstpStore(context: Context) {
     private val prefs = context.getSharedPreferences("sstp", Context.MODE_PRIVATE)
 
     fun lastEndpoint(): String? = prefs.getString(KEY_LAST, null)
 
-    fun setLastEndpoint(value: String) {
-        prefs.edit().putString(KEY_LAST, value).apply()
+    fun setLastEndpoint(value: String?) {
+        if (value == null) {
+            prefs.edit().remove(KEY_LAST).apply()
+        } else {
+            prefs.edit().putString(KEY_LAST, value).apply()
+        }
     }
 
-    private companion object {
+    fun hasCached(): Boolean = !lastEndpoint().isNullOrBlank()
+
+    companion object {
         const val KEY_LAST = "last_endpoint"
     }
 }

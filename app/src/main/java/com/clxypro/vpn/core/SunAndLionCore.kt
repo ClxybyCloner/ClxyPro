@@ -95,15 +95,47 @@ class SunAndLionCore : VpnCore {
     private fun openTunnel(mine: Int): String? {
         val saved = store.load()
         if (saved != null && saved.ips.isNotEmpty()) {
+            AppState.log("engine sunlion dialing with cached fronting route (${saved.ips.size} IPs)")
             val result = attempt(saved, CACHED_BUDGET_SECONDS, mine)
             if (result is Attempt.Ok || result is Attempt.Stopped || stopping) {
                 return finish(result)
             }
             AppState.log(
-                "engine sunlion saved route failed (${result.describe()}), " +
-                    "dialing the engine edge corpus"
+                "engine sunlion cached route failed (${result.describe()}), " +
+                    "clearing stale cache and auto-scanning edge routes"
             )
+            store.clear()
         }
+
+        // Auto-scan edge presets on first connect or after server failure
+        if (stopping || epoch.get() != mine) return null
+        emit(1002, "Scanning edge routes...", "")
+        AppState.log("engine sunlion discovering working edge CDN routes...")
+        val presets = SunAndLionScanner.presets()
+        val sampleIps = EdgeScanner.expand(presets.flatMap { it.ranges }.take(15), EdgeMode.QUICK)
+        val allSnis = presets.flatMap { it.snis }.distinct()
+        val allHosts = presets.flatMap { it.hosts }.distinct()
+        val hits = EdgeScanner.scan(
+            ips = sampleIps,
+            snis = allSnis,
+            hosts = allHosts,
+            concurrency = 6,
+            mode = EdgeMode.QUICK,
+            stop = { stopping || epoch.get() != mine },
+        )
+        if (hits.isNotEmpty()) {
+            val bestIps = hits.map { it.ip }.distinct().take(10)
+            val bestSnis = hits.map { it.sni }.distinct().take(5)
+            val bestHosts = hits.map { it.host }.distinct().take(5)
+            val freshCandidates = SunAndLionCandidates(bestIps, bestSnis, bestHosts)
+            store.saveScan(freshCandidates)
+            AppState.log("engine sunlion auto-cached ${bestIps.size} verified edge routes for instant future connects")
+            val freshResult = attempt(freshCandidates, FULL_BUDGET_SECONDS, mine)
+            if (freshResult is Attempt.Ok || freshResult is Attempt.Stopped || stopping) {
+                return finish(freshResult)
+            }
+        }
+
         return finish(attempt(null, FULL_BUDGET_SECONDS, mine))
     }
 

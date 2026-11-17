@@ -47,14 +47,19 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Widgets
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -84,6 +89,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.clxypro.vpn.BuildConfig
 import com.clxypro.vpn.R
 import com.clxypro.vpn.Texts
@@ -92,7 +98,9 @@ import com.clxypro.vpn.core.CoreRegistry
 import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.core.ServerChoice
+import com.clxypro.vpn.core.SstpStore
 import com.clxypro.vpn.core.StatusText
+import com.clxypro.vpn.core.SunAndLionStore
 import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.ui.theme.InterFontFamily
 import com.clxypro.vpn.vpn.Store
@@ -115,6 +123,24 @@ fun HomeScreen(
     val phase = phaseOf(state)
     val isConnected = phase == Phase.On
     val isConnecting = phase == Phase.Connecting || phase == Phase.Disconnecting
+
+    var showSstpScanDialog by remember { mutableStateOf(false) }
+    var showPrimeScanDialog by remember { mutableStateOf(false) }
+    var hasSstpCached by remember(state.coreId) { mutableStateOf(SstpStore(context).hasCached()) }
+    var hasPrimeCached by remember(state.coreId) { mutableStateOf(SunAndLionStore(context).load() != null) }
+
+    fun handleConnect() {
+        if (!state.connected && !state.running && !state.busy) {
+            if (state.coreId == "sstp" && !SstpStore(context).hasCached()) {
+                showSstpScanDialog = true
+                return
+            } else if (state.coreId == "sunlion" && SunAndLionStore(context).load() == null) {
+                showPrimeScanDialog = true
+                return
+            }
+        }
+        onToggle()
+    }
 
     ClxyCosmicBackground(modifier = modifier) {
         // Dotted world map in background behind upper content
@@ -154,12 +180,52 @@ fun HomeScreen(
                 )
             }
 
+            if (state.coreId == "sstp" && hasSstpCached) {
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(ClxyColors.EmeraldGood.copy(alpha = 0.12f))
+                        .border(0.8.dp, ClxyColors.EmeraldGood.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+                        .clickable {
+                            SstpStore(context).setLastEndpoint(null)
+                            hasSstpCached = false
+                            Toast.makeText(context, "سرور کش‌شده پاک شد · اسکن مجدد فعال شد", Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(Icons.Rounded.Bolt, contentDescription = null, tint = ClxyColors.EmeraldGood, modifier = Modifier.size(12.dp))
+                    Text("سرور فعال ذخیره شده · لمس برای اسکن مجدد", fontSize = 10.5.sp, color = ClxyColors.EmeraldGood)
+                }
+            } else if (state.coreId == "sunlion" && hasPrimeCached) {
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(ClxyColors.CyanGlow.copy(alpha = 0.12f))
+                        .border(0.8.dp, ClxyColors.CyanGlow.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+                        .clickable {
+                            SunAndLionStore(context).clear()
+                            hasPrimeCached = false
+                            Toast.makeText(context, "مسیرهای کش‌شده پاک شد · اسکن مجدد فعال شد", Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(Icons.Rounded.Speed, contentDescription = null, tint = ClxyColors.CyanGlow, modifier = Modifier.size(12.dp))
+                    Text("مسیر لبه ذخیره شده · لمس برای اسکن مجدد", fontSize = 10.5.sp, color = ClxyColors.CyanGlow)
+                }
+            }
+
             Spacer(Modifier.height(14.dp))
 
             // Main glowing multi-layer Connect Button
             ClxyPowerButton(
                 phase = phase,
-                onClick = onToggle,
+                onClick = { handleConnect() },
             )
 
             Spacer(Modifier.height(14.dp))
@@ -195,6 +261,124 @@ fun HomeScreen(
                 color = ClxyColors.TextDim.copy(alpha = 0.65f),
                 modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
             )
+        }
+
+        if (showSstpScanDialog) {
+            Dialog(onDismissRequest = { showSstpScanDialog = false }) {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = ClxyColors.CardSurface,
+                    border = BorderStroke(1.dp, ClxyColors.CyanGlow.copy(alpha = 0.5f)),
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Rounded.Bolt,
+                            contentDescription = null,
+                            tint = ClxyColors.CyanGlow,
+                            modifier = Modifier.size(44.dp)
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "CLXY Ghost · بهینه‌سازی سرورها",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ClxyColors.TextPrimary
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "سرورهای فعال برای اولین بار اسکن و کش می‌شوند تا در دفعات بعدی اتصال آنی باشد. این اسکن فقط یک‌بار تا زمان فعال بودن سرور انجام می‌شود.",
+                            fontSize = 12.5.sp,
+                            lineHeight = 18.sp,
+                            color = ClxyColors.TextSecondary,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(18.dp))
+                        Button(
+                            onClick = {
+                                showSstpScanDialog = false
+                                onToggle()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = ClxyColors.CyanGlow),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        ) {
+                            Text("🚀 اسکن خودکار و اتصال فوری", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                showSstpScanDialog = false
+                                onToggle()
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, ClxyColors.GlassBorder),
+                            modifier = Modifier.fillMaxWidth().height(44.dp)
+                        ) {
+                            Text("⚡ اتصال سریع مستقیم", color = ClxyColors.TextMuted, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showPrimeScanDialog) {
+            Dialog(onDismissRequest = { showPrimeScanDialog = false }) {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = ClxyColors.CardSurface,
+                    border = BorderStroke(1.dp, ClxyColors.CyanGlow.copy(alpha = 0.5f)),
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Rounded.Speed,
+                            contentDescription = null,
+                            tint = ClxyColors.CyanGlow,
+                            modifier = Modifier.size(44.dp)
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "CLXY Prime · بهینه‌سازی مسیرهای لبه",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ClxyColors.TextPrimary
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "مسیرهای CDN فرانتینگ برای بار اول اسکن و کش می‌شوند تا اتصالات بعدی با سرعت حداکثری و بدون تأخیر برقرار شوند.",
+                            fontSize = 12.5.sp,
+                            lineHeight = 18.sp,
+                            color = ClxyColors.TextSecondary,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(18.dp))
+                        Button(
+                            onClick = {
+                                showPrimeScanDialog = false
+                                onToggle()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = ClxyColors.CyanGlow),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        ) {
+                            Text("🚀 بهینه‌سازی مسیرها و اتصال", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                showPrimeScanDialog = false
+                                onToggle()
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, ClxyColors.GlassBorder),
+                            modifier = Modifier.fillMaxWidth().height(44.dp)
+                        ) {
+                            Text("⚡ اتصال پیش‌فرض", color = ClxyColors.TextMuted, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
         }
     }
 }

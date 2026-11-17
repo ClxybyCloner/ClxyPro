@@ -261,7 +261,7 @@ fun ToolsScreen(onBack: () -> Unit) {
             health = freshHealth
             latency = freshLatency
             val aliveCount = result.count { it.health == SstpHealth.Alive }
-            gateStatus = Texts.aliveCount(aliveCount, result.size)
+            gateStatus = "$aliveCount of ${result.size} reachable"
         }
     }
 
@@ -271,9 +271,9 @@ fun ToolsScreen(onBack: () -> Unit) {
             .take(maxServers)
         if (working.isEmpty()) return
         val endpoints = working.map { it.endpoint }
-        SstpRelays.saveInstalled(context, endpoints, gateReplace)
+        SstpRelays.apply(context, endpoints)
         installedRelays = SstpRelays.installedCount(context)
-        gateStatus = Texts.installedCount(working.size)
+        gateStatus = "${working.size} relays active"
     }
 
     BackHandler(onBack = onBack)
@@ -744,7 +744,7 @@ fun ToolsScreen(onBack: () -> Unit) {
                             border = BorderStroke(1.dp, ClxyColors.Cyan.copy(alpha = 0.5f)),
                         ) {
                             Text(
-                                Texts.useTopWorking(installedRelays),
+                                "Use Top Working Relays",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                             )

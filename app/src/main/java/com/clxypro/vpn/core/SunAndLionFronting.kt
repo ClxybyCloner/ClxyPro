@@ -79,6 +79,11 @@ class SunAndLionStore(context: Context) {
             .apply()
     }
 
+    /** Clears all cached scan and route data when a server is lost. */
+    fun clear() {
+        prefs.edit().clear().apply()
+    }
+
     /**
      * The address and SNI that carried a tunnel last time. An empty SNI means the
      * winning dial omitted the extension; only the address is trusted to repeat it.
