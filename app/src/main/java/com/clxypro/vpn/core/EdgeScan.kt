@@ -211,7 +211,7 @@ object EdgeScanner {
         concurrency: Int,
         mode: EdgeMode,
         stop: () -> Boolean,
-        onProgress: (done: Int, usable: Int) -> Unit
+        onProgress: (done: Int, usable: Int) -> Unit = { _, _ -> }
     ): List<EdgeHit> {
         if (ips.isEmpty() || snis.isEmpty()) return emptyList()
         val host = hosts.firstOrNull().orEmpty()

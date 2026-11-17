@@ -66,6 +66,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -354,7 +355,7 @@ fun ProfileScreen(
             ProfileMenuCard(
                 icon = Icons.Rounded.SystemUpdate,
                 title = "Check for Update",
-                subtitle = if (update != null) "Update available: ${update.tagName} (Current v${BuildConfig.VERSION_NAME})" else "Current v${BuildConfig.VERSION_NAME} • Check GitHub releases",
+                subtitle = if (update != null) "Update available: v${update.version} (Current v${BuildConfig.VERSION_NAME})" else "Current v${BuildConfig.VERSION_NAME} • Check GitHub releases",
                 badgeText = if (update != null) "NEW" else null,
                 tag = "profile_check_update",
                 onClick = { showUpdate = true },
@@ -377,7 +378,7 @@ fun ProfileScreen(
         isRunning = isRunning,
         onSelectCore = { coreId ->
             Prefs.coreId = coreId
-            AppState.setCore(coreId)
+            AppState.update { it.copy(coreId = coreId) }
         },
         onDismiss = { showConnection = false },
     )
@@ -1194,7 +1195,7 @@ fun BridgesSettingsDialog(onDismiss: () -> Unit) {
                                 scanning = true
                                 val stop = AtomicBoolean(false)
                                 withContext(Dispatchers.IO) {
-                                    TorBridges.scanReachable(context, { stop.get() }) { }
+                                    TorBridges.scan(context, { stop.get() }) { }
                                 }
                                 bridgeCount = TorBridges.all(context).size
                                 scanning = false
@@ -1233,7 +1234,7 @@ fun BridgesSettingsDialog(onDismiss: () -> Unit) {
 
                     Button(
                         onClick = {
-                            TorBridges.setCustom(context, customText)
+                            TorBridges.saveCustom(context, customText)
                             bridgeCount = TorBridges.all(context).size
                             Toast.makeText(context, "Custom bridges saved", Toast.LENGTH_SHORT).show()
                         },

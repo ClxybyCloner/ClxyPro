@@ -110,7 +110,7 @@ class SstpCore : VpnCore {
             var endpoints = SstpScanner.loadEndpoints(appContext)
             if (!SstpRelays.isOverridden(appContext) || endpoints.size < 3) {
                 AppState.log("engine $id fetching fresh relays from VPN Gate...")
-                val freshGate = runCatching { VpnGate.fetch { AppState.log(it) } }.getOrDefault(emptyList())
+                val freshGate = runCatching { VpnGate.fetch { AppState.log(it) } }.getOrNull() ?: emptyList()
                 val nonRestricted = freshGate.filterNot(VpnGate::isRestricted)
                 if (nonRestricted.isNotEmpty()) {
                     val freshEndpoints = nonRestricted.map { it.endpoint }.distinct().take(40)

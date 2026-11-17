@@ -72,7 +72,7 @@ object ServerChoice {
                 OpenRungServers.binary(context), OpenRungServers.workDir(context), stop, log
             )
             "sstp" -> {
-                val freshGate = runCatching { VpnGate.fetch(log) }.getOrDefault(emptyList())
+                val freshGate = runCatching { VpnGate.fetch(log) }.getOrNull() ?: emptyList()
                 val nonRestricted = freshGate.filterNot(VpnGate::isRestricted)
                 if (nonRestricted.isNotEmpty()) {
                     SstpRelays.apply(context, nonRestricted.map { it.endpoint }.distinct().take(40))
