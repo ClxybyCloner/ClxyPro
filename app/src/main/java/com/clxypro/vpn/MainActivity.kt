@@ -124,6 +124,7 @@ class MainActivity : ComponentActivity() {
                                 ClxyBottomNavBar(
                                     activeTab = activeTab,
                                     onSelectTab = { activeTab = it },
+                                    isQuantum = state.coreId == "aether",
                                 )
                             }
                         },
@@ -154,6 +155,7 @@ class MainActivity : ComponentActivity() {
                                             onOpenSettings = { activeTab = MainTab.PROFILE },
                                             onOpenTools = { toolsOpen = true },
                                             onOpenServers = { activeTab = MainTab.SERVERS },
+                                            onOpenAccounts = { activeTab = MainTab.ACCOUNTS },
                                             onOpenSignIn = {
                                                 webSignIn.launch(Intent(this@MainActivity, WebSignInActivity::class.java))
                                             },
@@ -169,6 +171,12 @@ class MainActivity : ComponentActivity() {
                                                 activeTab = MainTab.HOME
                                             },
                                             onCloseToHome = { activeTab = MainTab.HOME },
+                                        )
+                                        MainTab.ACCOUNTS -> AccountsScreen(
+                                            state = state,
+                                            onAddAccount = {
+                                                webSignIn.launch(Intent(this@MainActivity, WebSignInActivity::class.java))
+                                            },
                                         )
                                         MainTab.PROFILE -> ProfileScreen(
                                             state = state,

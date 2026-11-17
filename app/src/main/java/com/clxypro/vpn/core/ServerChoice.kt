@@ -196,34 +196,34 @@ object ServerChoice {
     private fun formatLanternServer(tag: String, country: String, protocol: String): Pair<String, String> {
         val lower = tag.lowercase()
         val city = when {
-            lower.contains("-fra-") || lower.contains("frankfurt") -> "Frankfurt"
-            lower.contains("-lon-") || lower.contains("london") -> "London"
-            lower.contains("-dub-") || lower.contains("dublin") -> "Dublin"
-            lower.contains("-par-") || lower.contains("paris") -> "Paris"
-            lower.contains("-ams-") || lower.contains("amsterdam") -> "Amsterdam"
-            lower.contains("-arn-") || lower.contains("stockholm") -> "Stockholm"
-            lower.contains("-hel-") || lower.contains("helsinki") -> "Helsinki"
-            lower.contains("-mil-") || lower.contains("milan") -> "Milan"
-            lower.contains("-mad-") || lower.contains("madrid") -> "Madrid"
-            lower.contains("-zrh-") || lower.contains("zurich") -> "Zurich"
-            lower.contains("-vie-") || lower.contains("vienna") -> "Vienna"
-            lower.contains("-prg-") || lower.contains("prague") -> "Prague"
-            lower.contains("-sin-") || lower.contains("singapore") -> "Singapore"
-            lower.contains("-nrt-") || lower.contains("tokyo") -> "Tokyo"
+            lower.contains("-fra-") || lower.contains("frankfurt") -> "فرانکفورت (Frankfurt)"
+            lower.contains("-lon-") || lower.contains("london") -> "لندن (London)"
+            lower.contains("-dub-") || lower.contains("dublin") -> "دوبلین (Dublin)"
+            lower.contains("-par-") || lower.contains("paris") -> "پاریس (Paris)"
+            lower.contains("-ams-") || lower.contains("amsterdam") -> "آمستردام (Amsterdam)"
+            lower.contains("-arn-") || lower.contains("stockholm") -> "استکهلم (Stockholm)"
+            lower.contains("-hel-") || lower.contains("helsinki") -> "هلسینکی (Helsinki)"
+            lower.contains("-mil-") || lower.contains("milan") -> "میلان (Milan)"
+            lower.contains("-mad-") || lower.contains("madrid") -> "مادرید (Madrid)"
+            lower.contains("-zrh-") || lower.contains("zurich") -> "زوریخ (Zurich)"
+            lower.contains("-vie-") || lower.contains("vienna") -> "وین (Vienna)"
+            lower.contains("-prg-") || lower.contains("prague") -> "پراگ (Prague)"
+            lower.contains("-sin-") || lower.contains("singapore") -> "سنگاپور (Singapore)"
+            lower.contains("-nrt-") || lower.contains("tokyo") -> "توکیو (Tokyo)"
             else -> ""
         }
         val countryName = when (country.uppercase()) {
-            "DE" -> "Germany"
-            "GB", "UK" -> "United Kingdom"
-            "IE" -> "Ireland"
-            "FR" -> "France"
-            "NL" -> "Netherlands"
-            "SE" -> "Sweden"
-            "FI" -> "Finland"
-            "US" -> "United States"
-            "JP" -> "Japan"
-            "SG" -> "Singapore"
-            else -> if (country.isNotBlank()) country else "Global Relay"
+            "DE" -> "آلمان (Germany)"
+            "GB", "UK" -> "انگلستان (United Kingdom)"
+            "IE" -> "ایرلند (Ireland)"
+            "FR" -> "فرانسه (France)"
+            "NL" -> "هلند (Netherlands)"
+            "SE" -> "سوئد (Sweden)"
+            "FI" -> "فنلاند (Finland)"
+            "US" -> "ایالات متحده (United States)"
+            "JP" -> "ژاپن (Japan)"
+            "SG" -> "سنگاپور (Singapore)"
+            else -> if (country.isNotBlank()) country else "گره جهانی CLXY"
         }
         val protoName = when {
             lower.contains("vless") -> "VLESS Vision"
@@ -233,8 +233,7 @@ object ServerChoice {
             else -> "CLXY Relay"
         }
         val title = if (city.isNotBlank()) "$countryName · $city" else countryName
-        val shortId = if (tag.length > 8) tag.takeLast(7) else tag
-        val detail = "$protoName · #$shortId"
+        val detail = "$protoName · سرور اختصاصی و پایدار"
         return title to detail
     }
 

@@ -40,4 +40,15 @@ object ClxyColors {
     val TimerDim = Color(0xFF475569)
     val BarInactive = Color(0xFF334155)
     val DotInactive = Color(0xFF1E293B)
+
+    // Stitch Minimal UI Design Tokens
+    val ObsidianDeep = Color(0xFF05060A)
+    val ObsidianBg = Color(0xFF090A0F)
+    val ObsidianCard = Color(0xFF11131B)
+    val ObsidianBorder = Color(0xFF1E212E)
+    val SubcardSurface = Color(0xFF181C28)
+    val QuantumPurple = Color(0xFF8B5CF6)
+    val QuantumViolet = Color(0xFFA855F7)
+    val QuantumBg = Color(0x338B5CF6)
+    val EmeraldPing = Color(0xFF10B981)
 }

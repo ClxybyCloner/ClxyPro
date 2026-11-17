@@ -45,7 +45,9 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -468,57 +470,104 @@ fun ClxyToastBanner(
 fun ClxyBottomNavBar(
     activeTab: MainTab,
     onSelectTab: (MainTab) -> Unit,
+    isQuantum: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    val activeTint = if (isQuantum) ClxyColors.QuantumPurple else ClxyColors.CyanBright
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(ClxyColors.NavBarSurface)
-            .border(width = 0.5.dp, color = Color(0xFF1E293B))
             .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        BottomNavItem(
-            selected = activeTab == MainTab.HOME,
-            label = "Home",
-            tag = "nav_home_button",
-            icon = { selected ->
-                Icon(
-                    imageVector = if (selected) Icons.Filled.Home else Icons.Outlined.Home,
-                    contentDescription = "Home",
-                    modifier = Modifier.size(22.dp),
+        Surface(
+            shape = RoundedCornerShape(22.dp),
+            color = ClxyColors.ObsidianCard.copy(alpha = 0.96f),
+            border = BorderStroke(1.dp, ClxyColors.ObsidianBorder),
+            shadowElevation = 14.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(62.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 6.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Tab 1: Home
+                BottomNavItem(
+                    selected = activeTab == MainTab.HOME,
+                    label = "خانه",
+                    activeColor = activeTint,
+                    tag = "nav_home_button",
+                    icon = { selected, tint ->
+                        Icon(
+                            imageVector = if (selected) Icons.Filled.Home else Icons.Outlined.Home,
+                            contentDescription = "خانه",
+                            tint = tint,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    onClick = { onSelectTab(MainTab.HOME) },
                 )
-            },
-            onClick = { onSelectTab(MainTab.HOME) },
-        )
-        BottomNavItem(
-            selected = activeTab == MainTab.SERVERS,
-            label = "All Server",
-            tag = "nav_servers_button",
-            icon = { selected ->
-                Icon(
-                    imageVector = if (selected) Icons.Filled.Public else Icons.Outlined.Public,
-                    contentDescription = "All Server",
-                    modifier = Modifier.size(22.dp),
+
+                // Tab 2: Servers / Route
+                BottomNavItem(
+                    selected = activeTab == MainTab.SERVERS,
+                    label = if (isQuantum) "مسیر Anycast" else "سرورها",
+                    activeColor = activeTint,
+                    tag = "nav_servers_button",
+                    icon = { selected, tint ->
+                        Icon(
+                            imageVector = if (isQuantum) Icons.Rounded.Bolt else (if (selected) Icons.Filled.Public else Icons.Outlined.Public),
+                            contentDescription = if (isQuantum) "مسیر" else "سرورها",
+                            tint = tint,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    onClick = { onSelectTab(MainTab.SERVERS) },
                 )
-            },
-            onClick = { onSelectTab(MainTab.SERVERS) },
-        )
-        BottomNavItem(
-            selected = activeTab == MainTab.PROFILE,
-            label = "Profile",
-            tag = "nav_profile_button",
-            icon = { selected ->
-                Icon(
-                    imageVector = if (selected) Icons.Filled.Person else Icons.Outlined.Person,
-                    contentDescription = "Profile",
-                    modifier = Modifier.size(22.dp),
+
+                // Tab 3: Accounts (ONLY in Hyper mode!)
+                if (!isQuantum) {
+                    BottomNavItem(
+                        selected = activeTab == MainTab.ACCOUNTS,
+                        label = "اکانت‌ها",
+                        activeColor = activeTint,
+                        tag = "nav_accounts_button",
+                        icon = { selected, tint ->
+                            Icon(
+                                imageVector = if (selected) Icons.Filled.Person else Icons.Outlined.Person,
+                                contentDescription = "اکانت‌ها",
+                                tint = tint,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        },
+                        onClick = { onSelectTab(MainTab.ACCOUNTS) },
+                    )
+                }
+
+                // Tab 4 / 3: Settings
+                BottomNavItem(
+                    selected = activeTab == MainTab.PROFILE,
+                    label = if (isQuantum) "تنظیمات کوانتوم" else "تنظیمات",
+                    activeColor = activeTint,
+                    tag = "nav_profile_button",
+                    icon = { _, tint ->
+                        Icon(
+                            imageVector = Icons.Rounded.Tune,
+                            contentDescription = "تنظیمات",
+                            tint = tint,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    onClick = { onSelectTab(MainTab.PROFILE) },
                 )
-            },
-            onClick = { onSelectTab(MainTab.PROFILE) },
-        )
+            }
+        }
     }
 }
 
@@ -526,18 +575,57 @@ fun ClxyBottomNavBar(
 private fun BottomNavItem(
     selected: Boolean,
     label: String,
+    activeColor: Color,
     tag: String,
-    icon: @Composable (Boolean) -> Unit,
+    icon: @Composable (Boolean, Color) -> Unit,
     onClick: () -> Unit,
 ) {
     val tint by animateColorAsState(
-        targetValue = if (selected) ClxyColors.CyanGlow else ClxyColors.TextDim,
-        animationSpec = tween(260),
+        targetValue = if (selected) activeColor else ClxyColors.TextDim,
+        animationSpec = tween(240),
         label = "navTint",
     )
     val iconScale by animateFloatAsState(
-        targetValue = if (selected) 1.12f else 1.0f,
+        targetValue = if (selected) 1.08f else 1.0f,
         animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "navScale",
+    )
+
+    Column(
+        modifier = Modifier
+            .testTag(tag)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            modifier = Modifier.scale(iconScale),
+            contentAlignment = Alignment.Center
+        ) {
+            icon(selected, tint)
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = tint,
+        )
+        if (selected) {
+            Spacer(Modifier.height(2.dp))
+            Box(
+                modifier = Modifier
+                    .size(3.dp)
+                    .background(activeColor, CircleShape)
+            )
+        }
+    }
+}
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium,
         ),
