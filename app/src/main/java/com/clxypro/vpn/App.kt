@@ -30,15 +30,9 @@ class App : Application() {
         // image build date, and the engines are handed this bundle instead.
         CaBundle.prepare(this)
         Prefs.init(this)
-        // Firefox stays the default engine; the ported cores follow it in the picker.
+        // Firefox (CLXY Hyper) stays the default engine; Aether (CLXY Quantum) follows.
         CoreRegistry.register(FirefoxCore())
         CoreRegistry.register(AetherCore())
-        CoreRegistry.register(PsiphonCore())
-        CoreRegistry.register(SunAndLionCore())
-        CoreRegistry.register(SstpCore())
-        CoreRegistry.register(LanternCore())
-        CoreRegistry.register(OpenRungCore())
-        CoreRegistry.register(TorCore())
         CoreRegistry.all().forEach { core ->
             runCatching { core.init(this) }
                 .onFailure { AppState.log("core ${core.id} init failed: ${it.message ?: it.javaClass.simpleName}") }

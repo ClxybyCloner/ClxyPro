@@ -22,14 +22,14 @@ private val ZH = mapOf(
     "In VPN mode every app goes through the tunnel. In proxy mode only apps configured to use the local SOCKS5 proxy do." to
         "在 VPN 模式下，所有应用的流量都经过隧道。在代理模式下，只有配置了本地 SOCKS5 代理的应用才会经过。",
     "Core" to "内核",
-    "The engine that carries the tunnel. Firefox uses your account; the others need no sign-in." to
-        "承载隧道的内核。Firefox 使用你的账户；其他内核无需登录。",
-    "Aether" to "Aether",
+    "The engine that carries the tunnel. CLXY Hyper uses your account; the others need no sign-in." to
+        "承载隧道的内核。CLXY Hyper 使用你的账户；其他内核无需登录。",
+    "Aether" to "CLXY Quantum",
     "Psiphon" to "Psiphon",
     "Sun and Lion" to "太阳与狮子",
     "SSTP" to "SSTP",
     "Lantern" to "Lantern",
-    "Firefox" to "Firefox",
+    "Firefox" to "CLXY Hyper",
     "Tor" to "Tor",
     "Server" to "服务器",
     "Auto — fastest working server" to "自动 — 最快的可用服务器",
@@ -46,12 +46,12 @@ private val ZH = mapOf(
     "No working route was found. Check the network and try again." to "未找到可用线路。请检查网络后重试。",
     "The core is downloading server information. The first connection takes a while, please wait." to
         "内核正在下载服务器信息。首次连接需要一些时间，请耐心等待。",
-    "Sign in to your Firefox Account in Settings first." to "请先在设置中登录你的 Firefox 账户。",
-    "Firefox Account" to "Firefox 账户",
-    "The Firefox core uses the free proxy that comes with any Firefox Account — no subscription. Only the sign-in token is kept, never the password." to
-        "Firefox 内核使用每个 Firefox 账户自带的免费代理，无需订阅。只保存登录令牌，绝不保存密码。",
+    "Sign in to your CLXY Account in Settings first." to "请先在设置中登录你的 CLXY 账户。",
+    "CLXY Account" to "CLXY 账户",
+    "The CLXY Hyper core uses the free proxy that comes with any CLXY Account — no subscription. Only the sign-in token is kept, never the password." to
+        "CLXY Hyper 内核使用每个 CLXY 账户自带的免费代理，无需订阅。只保存登录令牌，绝不保存密码。",
     "Email" to "邮箱",
-    "No Firefox Account yet? Sign up for free" to "还没有 Firefox 账户？免费注册",
+    "No CLXY Account yet? Sign up for free" to "还没有 CLXY 账户？免费注册",
     "No browser is available to open the link." to "没有可用来打开链接的浏览器。",
     "Password" to "密码",
     "Sign in" to "登录",

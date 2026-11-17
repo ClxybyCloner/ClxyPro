@@ -8,12 +8,10 @@ OUT="dist"
 APK_DIR="app/build/outputs/apk/release"
 ABIS=(armeabi-v7a arm64-v8a)
 LIBRARIES=(
-    libaether.so libc2tun.so libffvpn.so liblantern.so liblyrebird.so libopenrung.so
-    libsstp.so libsunlion.so libsunlionbridge.so libtor.so libtorrunner.so
+    libaether.so libc2tun.so libffvpn.so
 )
 ASSETS=(
-    ca_roots.pem psiphon_embedded_entries.txt psiphon_servers.bin
-    sstp_servers.txt tor_obfs4_bridges.txt
+    ca_roots.pem
 )
 
 MANIFEST="tools/cores.manifest"
@@ -147,28 +145,6 @@ if [ "${#unaligned[@]}" -gt 0 ]; then
     printf '  %s\n' "${unaligned[@]}" >&2
     printf '%s\n' 'Rebuild them with -Wl,-z,max-page-size=16384, then run ./tools/build-apks.sh --update-manifest.' >&2
 fi
-# The bridges dlopen the engine and resolve exactly these two entry points. A new
-# engine release that renames them, or is dropped in as the wrong file, still
-# parses as a valid ARM library and only fails as a failed connect on a phone.
-for abi in "${ABIS[@]}"; do
-    for engine in sunlion; do
-        file="app/src/main/jniLibs/$abi/lib$engine.so"
-        exports=$("$READELF" --dyn-syms -W "$file" 2>/dev/null |
-            awk '$4 == "FUNC" && $7 != "UND" { print $8 }')
-        for symbol in PsiphonTunnelStart PsiphonTunnelStop; do
-            if ! printf '%s\n' "$exports" | grep -qx "$symbol"; then
-                printf 'Missing entry point: %s does not export %s, which lib%sbridge.so resolves with dlsym.\n' \
-                    "$file" "$symbol" "$engine" >&2
-                bad=1
-            fi
-        done
-    done
-done
-if [ "$bad" = 1 ]; then
-    printf '%s\n' 'The jniLibs tree does not match its ABI directories or the entry points the bridges resolve; fix the cores before building.' >&2
-    exit 1
-fi
-
 # Every shipped binary is recorded so that a replaced core is visible in review
 # and a stale manifest is caught instead of being packaged silently.
 if [ "$RECORD" = 1 ]; then
@@ -182,16 +158,6 @@ if [ "$RECORD" = 1 ]; then
                 ( cd app/src/main/jniLibs && sha256sum "$abi/$library" )
             done
         done
-        if command -v go >/dev/null 2>&1; then
-            printf '\n# Build provenance from `go version -m`, informational only:\n'
-            for abi in "${ABIS[@]}"; do
-                for engine in libsunlion.so; do
-                    info=$( cd app/src/main/jniLibs && go version -m "$abi/$engine" 2>/dev/null |
-                        sed -n '1p;/^[[:space:]]*build/p' | tr '\n' ' ' ) || info=
-                    [ -n "$info" ] && printf '# %s\n' "$(printf '%s' "$info" | tr -s ' ')"
-                done
-            done
-        fi
     } > "$MANIFEST"
     printf 'Recorded %s native libraries in %s.\n' \
         "$(( ${#ABIS[@]} * ${#LIBRARIES[@]} ))" "$MANIFEST"

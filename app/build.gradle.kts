@@ -11,8 +11,8 @@ android {
         applicationId = "com.clxypro.vpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.5.0"
+        versionCode = 8
+        versionName = "1.5.1"
     }
 
     // A fixed key kept in the repo. Every build, local or CI, signs with the
@@ -76,29 +76,13 @@ android {
             keepDebugSymbols += listOf(
                 "**/libaether.so",
                 "**/libc2tun.so",
-                "**/libffvpn.so",
-                "**/liblantern.so",
-                "**/liblyrebird.so",
-                "**/libgojni.so",
-                "**/libopenrung.so",
-                "**/libsstp.so",
-                "**/libsunlion.so",
-                "**/libsunlionbridge.so",
-                "**/libtor.so",
-                "**/libtorrunner.so"
+                "**/libffvpn.so"
             )
         }
     }
 }
 
 dependencies {
-    // The official Psiphon engine for Android (gomobile psi.Psi), published as a
-    // release artifact by Psiphon-Labs/psiphon-tunnel-core-binaries. The engine
-    // used to be a vendored .so built on clientlib, whose StartTunnel closes its
-    // "connected" channel again when the engine replaces a dead tunnel and takes
-    // the whole process down with "panic: close of closed channel".
-    implementation(files("libs/ca.psiphon.aar"))
-
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")

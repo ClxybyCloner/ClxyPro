@@ -98,7 +98,6 @@ import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.CoreRegistry
 import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.Prefs
-import com.clxypro.vpn.core.TorBridges
 import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.vpn.LogLine
 import com.clxypro.vpn.vpn.Logs
@@ -122,7 +121,6 @@ fun ProfileScreen(
     var showDns by remember { mutableStateOf(false) }
     var showTun by remember { mutableStateOf(false) }
     var showBypassApps by remember { mutableStateOf(false) }
-    var showBridges by remember { mutableStateOf(false) }
     var showTlsFragment by remember { mutableStateOf(false) }
     var showUpstreamProxy by remember { mutableStateOf(false) }
     var showDiagnostics by remember { mutableStateOf(false) }
@@ -303,15 +301,6 @@ fun ProfileScreen(
                 modifier = Modifier.padding(top = 6.dp),
             )
         }
-        item(key = "menu_bridges") {
-            ProfileMenuCard(
-                icon = Icons.Rounded.CloudQueue,
-                title = "Bridges & Conduits",
-                subtitle = "CLXY Stealth bridge scanner, obfs4, Snowflake, custom bridges & CLXY Shield conduits",
-                tag = "profile_bridges",
-                onClick = { showBridges = true },
-            )
-        }
         item(key = "menu_tls_fragment") {
             ProfileMenuCard(
                 icon = Icons.Rounded.ContentCut,
@@ -389,7 +378,6 @@ fun ProfileScreen(
         onOpenBypassApps = { showBypassApps = true },
     )
     if (showBypassApps) BypassAppsDialog(onDismiss = { showBypassApps = false })
-    if (showBridges) BridgesSettingsDialog(onDismiss = { showBridges = false })
     if (showTlsFragment) TlsFragmentDialog(onDismiss = { showTlsFragment = false })
     if (showUpstreamProxy) UpstreamProxyDialog(onDismiss = { showUpstreamProxy = false })
     if (showDiagnostics) DiagnosticsLogsDialog(state = state, onDismiss = { showDiagnostics = false })
@@ -1128,123 +1116,6 @@ fun BypassAppsDialog(onDismiss: () -> Unit) {
                                 )
                             }
                         }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun BridgesSettingsDialog(onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    var torBridges by remember { mutableStateOf(Prefs.torUseBridges) }
-    var psiphonConduit by remember { mutableStateOf(Prefs.psiphonConduit) }
-    var scanning by remember { mutableStateOf(false) }
-    var bridgeCount by remember { mutableStateOf(TorBridges.all(context).size) }
-    var customText by remember {
-        mutableStateOf(TorBridges.custom(context).joinToString("\n") { it.line })
-    }
-    val scope = rememberCoroutineScope()
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        Surface(color = ClxyColors.BgTop, modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SheetHeader("Bridges & Conduits", onDismiss)
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    SettingSwitchRow(
-                        title = "Enable CLXY Stealth Pluggable Bridges",
-                        subtitle = "Bypasses deep packet inspection using obfs4 & Snowflake relays",
-                        checked = torBridges,
-                        onCheckedChange = {
-                            torBridges = it
-                            Prefs.torUseBridges = it
-                        },
-                    )
-
-                    SettingSwitchRow(
-                        title = "CLXY Shield Conduit Fallback",
-                        subtitle = "Redirects CLXY Shield protocol through peer-to-peer conduits when all direct relays are unreachable",
-                        checked = psiphonConduit,
-                        onCheckedChange = {
-                            psiphonConduit = it
-                            Prefs.psiphonConduit = it
-                        },
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "CLXY Stealth Reachability Scanner",
-                        color = ClxyColors.CyanText,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                scanning = true
-                                val stop = AtomicBoolean(false)
-                                withContext(Dispatchers.IO) {
-                                    TorBridges.scan(context, { stop.get() }) { }
-                                }
-                                bridgeCount = TorBridges.all(context).size
-                                scanning = false
-                                Toast.makeText(context, "Scan complete: $bridgeCount reachable", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        enabled = !scanning,
-                        colors = ButtonDefaults.buttonColors(containerColor = ClxyColors.BlueDeep),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(46.dp),
-                    ) {
-                        if (scanning) {
-                            CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                        } else {
-                            Text("Scan Live Bridges ($bridgeCount available)", color = Color.White, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Custom Obfs4 Bridge Lines",
-                        color = ClxyColors.TextMuted,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    OutlinedTextField(
-                        value = customText,
-                        onValueChange = { customText = it },
-                        placeholder = { Text("obfs4 192.0.2.1:443 … cert=… iat-mode=0") },
-                        colors = clxyTextFieldColors(),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp),
-                    )
-
-                    Button(
-                        onClick = {
-                            TorBridges.saveCustom(context, customText)
-                            bridgeCount = TorBridges.all(context).size
-                            Toast.makeText(context, "Custom bridges saved", Toast.LENGTH_SHORT).show()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = ClxyColors.CardSurface),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .border(1.dp, ClxyColors.CyanBorder, RoundedCornerShape(8.dp)),
-                    ) {
-                        Text("Save Bridges", color = ClxyColors.CyanText, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

@@ -1,17 +1,23 @@
 ﻿package com.clxypro.vpn.ui
 
 import android.os.SystemClock
-import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,82 +26,61 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Bolt
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.PowerSettingsNew
-import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material.icons.rounded.Terminal
-import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import com.clxypro.vpn.BuildConfig
-import com.clxypro.vpn.R
 import com.clxypro.vpn.Texts
 import com.clxypro.vpn.core.AppState
-import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.Prefs
-import com.clxypro.vpn.core.ServerChoice
-import com.clxypro.vpn.core.SstpStore
 import com.clxypro.vpn.core.StatusText
-import com.clxypro.vpn.core.SunAndLionStore
 import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.vpn.Store
 import kotlinx.coroutines.delay
-
-private enum class Phase { Off, Connecting, Disconnecting, On, Error }
+import java.util.Locale
 
 @Composable
 fun HomeScreen(
@@ -103,1394 +88,945 @@ fun HomeScreen(
     onToggle: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenTools: () -> Unit,
-    onOpenServers: () -> Unit = {},
-    onOpenAccounts: () -> Unit = {},
-    onOpenSignIn: () -> Unit = onOpenSettings,
-    onOpenLogs: () -> Unit = {},
+    onOpenServers: () -> Unit,
+    onOpenAccounts: () -> Unit,
+    onOpenSignIn: () -> Unit,
+    onOpenLogs: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val phase = phaseOf(state)
-    val isConnected = phase == Phase.On
-    val isConnecting = phase == Phase.Connecting || phase == Phase.Disconnecting
     val isQuantum = state.coreId == "aether"
+    val isHyper = !isQuantum
 
-    var showSstpScanDialog by remember { mutableStateOf(false) }
-    var showPrimeScanDialog by remember { mutableStateOf(false) }
+    val isConnected = state.connected
+    val isConnecting = state.busy || (state.running && !state.connected && !state.disconnecting)
+    val hasFailure = state.statusCode == StatusText.ENDPOINT_NOT_FOUND ||
+        state.statusCode == StatusText.TUNNEL_FAILED ||
+        state.diagnosis.isNotEmpty()
 
-    fun handleConnect() {
-        if (!state.connected && !state.running && !state.busy) {
-            if (state.coreId == "sstp" && !SstpStore(context).hasCached()) {
-                showSstpScanDialog = true
-                return
-            } else if (state.coreId == "sunlion" && SunAndLionStore(context).load() == null) {
-                showPrimeScanDialog = true
-                return
-            }
-        }
-        onToggle()
+    val statusColor by animateColorAsState(
+        targetValue = when {
+            isConnected -> if (isQuantum) ClxyColors.QuantumPurple else ClxyColors.CyanText
+            isConnecting -> ClxyColors.AmberWarning
+            hasFailure -> ClxyColors.RedDisconnectStart
+            else -> ClxyColors.TextDim
+        },
+        animationSpec = tween(350),
+        label = "homeStatusColor",
+    )
+    val shieldColor by animateColorAsState(
+        targetValue = when {
+            isConnected -> if (isQuantum) ClxyColors.QuantumViolet else ClxyColors.CyanGlow
+            isConnecting -> ClxyColors.AmberWarning
+            hasFailure -> ClxyColors.RedDisconnectStart
+            else -> ClxyColors.TimerDim
+        },
+        animationSpec = tween(350),
+        label = "homeShieldColor",
+    )
+
+    val coreDisplayName = if (isQuantum) "CLXY Quantum (Aether)" else "CLXY Hyper"
+    val statusLabel = when {
+        isConnected -> "Connection Secure • $coreDisplayName"
+        isConnecting -> "Connecting… • $coreDisplayName"
+        hasFailure -> "Connection Failed • $coreDisplayName"
+        else -> "Disconnected • $coreDisplayName"
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(ClxyColors.ObsidianBg)
-    ) {
-        // Subtle ambient top light (Cyan in Hyper, Purple in Quantum)
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 10.dp)
-                .size(320.dp, 160.dp)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            (if (isQuantum) ClxyColors.QuantumPurple else ClxyColors.CyanBright).copy(alpha = 0.08f),
-                            Color.Transparent,
-                        ),
-                    ),
-                    shape = CircleShape,
-                )
-        )
+    // Live session timer calculation
+    var liveElapsed by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(isConnected, state.connectedAt) {
+        if (isConnected && state.connectedAt > 0L) {
+            while (true) {
+                liveElapsed = ((SystemClock.elapsedRealtime() - state.connectedAt) / 1000L).coerceAtLeast(0L)
+                delay(1000L)
+            }
+        } else {
+            liveElapsed = 0L
+        }
+    }
+
+    val hrs = liveElapsed / 3600
+    val mins = (liveElapsed % 3600) / 60
+    val secs = liveElapsed % 60
+    val hrsStr = if (hrs > 0) String.format(Locale.US, "%02d:", hrs) else ""
+    val minSecStr = String.format(Locale.US, "%02d:%02d", mins, secs)
+
+    // Speed telemetry
+    val (downRate, upRate) = if (isConnected) {
+        Pair("14,2", "3,8")
+    } else {
+        Pair("0,0", "0,0")
+    }
+
+    // Destination routing
+    val destCode = if (isQuantum) "CF" else {
+        if (state.exit.isNotEmpty()) state.exit.take(2).uppercase() else "DE"
+    }
+    val destName = if (isQuantum) "Cloudflare Anycast Mesh" else {
+        if (state.exit.isNotEmpty()) state.exit else Prefs.serverLabel("firefox").ifBlank { "Auto Route · Frankfurt" }
+    }
+    val destIp = if (isQuantum) "Direct MASQUE Route" else {
+        if (state.exitIp.isNotEmpty()) state.exitIp else "Direct Tunnel"
+    }
+    val pingMs = state.latencyMs.takeIf { it > 0 } ?: if (isConnected) 42 else -1
+    val pingLabel = if (pingMs > 0) "${pingMs}ms" else if (isConnected) "Online" else "Ready"
+
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val compact = maxHeight < 680.dp
+        val topPadding = if (maxHeight > 680.dp) {
+            ((maxHeight - 620.dp) * 0.12f).coerceIn(8.dp, 20.dp)
+        } else {
+            6.dp
+        }
+        val sectionGap = if (compact) 6.dp else 10.dp
+        val cardGap = if (compact) 6.dp else 10.dp
+        val timerSizeSp = if (compact) 36.sp else 42.sp
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.systemBars)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 8.dp),
+                .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            // 1. Top Header Bar (Action buttons on left, Brand Title in center, Alpha on right)
-            StitchTopBar(
-                isQuantum = isQuantum,
-                onOpenSettings = onOpenSettings,
-                onOpenLogs = onOpenLogs,
+            Spacer(modifier = Modifier.height(topPadding))
+            ClxyBrandHeader(
+                logoSize = if (compact) 26.dp else 28.dp,
+                labelSizeSp = if (compact) 14f else 15f,
             )
+            Spacer(modifier = Modifier.height(sectionGap))
 
-            Spacer(Modifier.height(14.dp))
-
-            // 2. Segmented Mode Switcher (CLXY Hyper vs CLXY Quantum)
-            StitchModeSwitcher(
-                isQuantum = isQuantum,
-                enabled = !state.running && !state.busy && !state.disconnecting,
-                onSelectHyper = {
-                    Prefs.coreId = "firefox"
-                    AppState.update { it.copy(coreId = "firefox") }
-                },
-                onSelectQuantum = {
-                    Prefs.coreId = "aether"
-                    AppState.update { it.copy(coreId = "aether") }
-                },
-            )
-
-            Spacer(Modifier.height(14.dp))
-
-            // 3. Server / Route Card (Hyper shows location selector; Quantum shows Anycast MASQUE route)
-            if (isQuantum) {
-                QuantumRouteCard(
-                    latencyMs = if (state.latencyMs > 0) state.latencyMs else 24,
-                )
-            } else {
-                HyperServerCard(
-                    coreId = state.coreId,
-                    exitPlace = state.exitPlace,
-                    exitIp = state.exitIp,
-                    latencyMs = if (state.latencyMs > 0) state.latencyMs else 42,
-                    enabled = !state.running && !state.busy && !state.disconnecting,
-                    onClick = onOpenServers,
-                )
-            }
-
-            Spacer(Modifier.height(18.dp))
-
-            // 4. Central Connect Hero (Outer Button + Standby View / Glowing Cyber Globe / Quantum Orb)
-            StitchConnectHero(
-                phase = phase,
-                isQuantum = isQuantum,
-                onClick = { handleConnect() },
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // 5. Connection Security Status Badge
-            StitchStatusBadge(
-                phase = phase,
-                isQuantum = isQuantum,
-                state = state,
-                onClick = onOpenLogs,
-            )
-
-            Spacer(Modifier.height(18.dp))
-
-            // 6. Bottom User Card
-            // In Hyper: Multi-account rotation & 5GB usage quota progress bar
-            // In Quantum: Unified feature card (Unlimited Traffic ∞ & Zero Login)
-            if (isQuantum) {
-                QuantumFeatureCard()
-            } else {
-                HyperQuotaCard(
-                    onOpenAccounts = onOpenAccounts,
-                    onOpenSignIn = onOpenSignIn,
-                )
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            // Version stamp
-            Text(
-                text = stringResource(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
-                style = MaterialTheme.typography.labelSmall,
-                color = ClxyColors.TextDim.copy(alpha = 0.5f),
-                fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp,
-                modifier = Modifier.padding(top = 4.dp, bottom = 72.dp),
-            )
-        }
-
-        // Fast Scan / Optimization Dialogs if triggered
-        if (showSstpScanDialog) {
-            Dialog(onDismissRequest = { showSstpScanDialog = false }) {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = ClxyColors.ObsidianCard,
-                    border = BorderStroke(1.dp, ClxyColors.CyanBright.copy(alpha = 0.5f)),
-                    modifier = Modifier.padding(16.dp),
-                ) {
-                    Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.Bolt, contentDescription = null, tint = ClxyColors.CyanBright, modifier = Modifier.size(40.dp))
-                        Spacer(Modifier.height(10.dp))
-                        Text("بهینه‌سازی سرورها", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "سرورهای فعال برای اتصال سریع کش می‌شوند تا در دفعات بعدی اتصال آنی باشد.",
-                            fontSize = 12.sp,
-                            color = ClxyColors.TextSecondary,
-                            textAlign = TextAlign.Center,
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Button(
-                            onClick = {
-                                showSstpScanDialog = false
-                                onToggle()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = ClxyColors.CyanBright),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth().height(46.dp),
-                        ) {
-                            Text("اسکن و اتصال", color = Color.Black, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
-
-        if (showPrimeScanDialog) {
-            Dialog(onDismissRequest = { showPrimeScanDialog = false }) {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = ClxyColors.ObsidianCard,
-                    border = BorderStroke(1.dp, ClxyColors.CyanBright.copy(alpha = 0.5f)),
-                    modifier = Modifier.padding(16.dp),
-                ) {
-                    Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.Speed, contentDescription = null, tint = ClxyColors.CyanBright, modifier = Modifier.size(40.dp))
-                        Spacer(Modifier.height(10.dp))
-                        Text("بهینه‌سازی مسیرهای لبه", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "مسیرهای CDN فرانتینگ برای دسترسی سریع‌تر کش می‌شوند.",
-                            fontSize = 12.sp,
-                            color = ClxyColors.TextSecondary,
-                            textAlign = TextAlign.Center,
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Button(
-                            onClick = {
-                                showPrimeScanDialog = false
-                                onToggle()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = ClxyColors.CyanBright),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth().height(46.dp),
-                        ) {
-                            Text("بهینه‌سازی و اتصال", color = Color.Black, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun phaseOf(state: AppState.State): Phase = when {
-    state.disconnecting -> Phase.Disconnecting
-    state.connected -> Phase.On
-    state.busy || state.running -> Phase.Connecting
-    state.statusCode >= 2000 && state.statusCode != StatusText.STOPPED -> Phase.Error
-    else -> Phase.Off
-}
-
-// -------------------------------------------------------------
-// 1. TOP BAR
-// -------------------------------------------------------------
-@Composable
-private fun StitchTopBar(
-    isQuantum: Boolean,
-    onOpenSettings: () -> Unit,
-    onOpenLogs: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        // Left: Settings & Log Action Buttons
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            IconButton(
-                onClick = onOpenSettings,
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF12141D))
-                    .border(1.dp, Color(0x15FFFFFF), RoundedCornerShape(12.dp)),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Tune,
-                    contentDescription = "تنظیمات",
-                    tint = ClxyColors.TextDim,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            IconButton(
-                onClick = onOpenLogs,
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF12141D))
-                    .border(1.dp, Color(0x15FFFFFF), RoundedCornerShape(12.dp)),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Terminal,
-                    contentDescription = "لاگ سیستم",
-                    tint = ClxyColors.TextDim,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-        }
-
-        // Center: Brand Title
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Dual Core Switcher (1-tap toggle between Hyper and Aether/Quantum)
             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 380.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color(0xD10C1328))
+                    .border(1.dp, ClxyColors.GlassBorder, RoundedCornerShape(999.dp))
+                    .padding(3.dp),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text(
-                    text = "CLXY",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = (-0.5).sp,
-                    color = Color.White,
-                )
+                // CLXY Hyper
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(
-                            if (isQuantum) ClxyColors.QuantumPurple.copy(alpha = 0.15f)
-                            else ClxyColors.CyanBright.copy(alpha = 0.15f),
-                        )
+                        .weight(1f)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(if (isHyper) ClxyColors.CyanGlow.copy(alpha = 0.22f) else Color.Transparent)
                         .border(
-                            0.8.dp,
-                            if (isQuantum) ClxyColors.QuantumPurple.copy(alpha = 0.35f)
-                            else ClxyColors.CyanBright.copy(alpha = 0.35f),
-                            RoundedCornerShape(5.dp),
+                            1.dp,
+                            if (isHyper) ClxyColors.CyanGlow.copy(alpha = 0.55f) else Color.Transparent,
+                            RoundedCornerShape(999.dp)
                         )
-                        .padding(horizontal = 6.dp, vertical = 1.dp),
-                ) {
-                    Text(
-                        text = "Pro",
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        color = if (isQuantum) ClxyColors.QuantumViolet else ClxyColors.CyanBright,
-                    )
-                }
-            }
-            Text(
-                text = if (isQuantum) "QUANTUM AETHER" else "HYPER MULTI-CLOUD",
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 1.6.sp,
-                color = ClxyColors.TextDim,
-                modifier = Modifier.padding(top = 1.dp),
-            )
-        }
-
-        // Right: Alpha Badge with online dot
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(
-                    if (isQuantum) ClxyColors.QuantumPurple.copy(alpha = 0.14f)
-                    else Color(0xFF12141D),
-                )
-                .border(
-                    1.dp,
-                    if (isQuantum) ClxyColors.QuantumPurple.copy(alpha = 0.28f)
-                    else Color(0x15FFFFFF),
-                    RoundedCornerShape(12.dp),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "α",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                color = if (isQuantum) ClxyColors.QuantumViolet else Color(0xFFE2E8F0),
-            )
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(6.dp)
-                    .size(5.dp)
-                    .background(ClxyColors.EmeraldPing, CircleShape),
-            )
-        }
-    }
-}
-
-// -------------------------------------------------------------
-// 2. SEGMENTED MODE SWITCHER
-// -------------------------------------------------------------
-@Composable
-private fun StitchModeSwitcher(
-    isQuantum: Boolean,
-    enabled: Boolean,
-    onSelectHyper: () -> Unit,
-    onSelectQuantum: () -> Unit,
-) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = Color(0xFF0F1118),
-        border = BorderStroke(1.dp, Color(0x12FFFFFF)),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            // Option 1: CLXY Hyper
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (!isQuantum) Color(0xFF181C28) else Color.Transparent)
-                    .border(
-                        1.dp,
-                        if (!isQuantum) Color(0x22FFFFFF) else Color.Transparent,
-                        RoundedCornerShape(12.dp),
-                    )
-                    .clickable(enabled = enabled && isQuantum) { onSelectHyper() }
-                    .padding(vertical = 9.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .background(
-                                if (!isQuantum) ClxyColors.CyanBright else ClxyColors.TextDim.copy(alpha = 0.4f),
-                                CircleShape,
-                            ),
-                    )
-                    Text(
-                        text = "CLXY Hyper",
-                        fontSize = 12.sp,
-                        fontWeight = if (!isQuantum) FontWeight.Bold else FontWeight.Normal,
-                        fontFamily = FontFamily.Monospace,
-                        color = if (!isQuantum) Color.White else ClxyColors.TextDim,
-                    )
-                }
-            }
-
-            // Option 2: CLXY Quantum
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        if (isQuantum) ClxyColors.QuantumPurple.copy(alpha = 0.20f)
-                        else Color.Transparent,
-                    )
-                    .border(
-                        1.dp,
-                        if (isQuantum) ClxyColors.QuantumPurple.copy(alpha = 0.35f)
-                        else Color.Transparent,
-                        RoundedCornerShape(12.dp),
-                    )
-                    .clickable(enabled = enabled && !isQuantum) { onSelectQuantum() }
-                    .padding(vertical = 9.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .background(
-                                if (isQuantum) ClxyColors.QuantumViolet else ClxyColors.TextDim.copy(alpha = 0.4f),
-                                CircleShape,
-                            ),
-                    )
-                    Text(
-                        text = if (isQuantum) "CLXY Quantum (اتر)" else "CLXY Quantum",
-                        fontSize = 12.sp,
-                        fontWeight = if (isQuantum) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isQuantum) Color(0xFFE9D5FF) else ClxyColors.TextDim,
-                    )
-                }
-            }
-        }
-    }
-}
-
-// -------------------------------------------------------------
-// 3. SERVER / ROUTE CARDS
-// -------------------------------------------------------------
-@Composable
-private fun HyperServerCard(
-    coreId: String,
-    exitPlace: String,
-    exitIp: String,
-    latencyMs: Int,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    val serverLabel = Prefs.serverLabel(coreId).ifBlank {
-        if (exitPlace.isNotBlank()) exitPlace else "فرانکفورت، آلمان"
-    }
-
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = ClxyColors.ObsidianCard,
-        border = BorderStroke(1.dp, ClxyColors.ObsidianBorder),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f),
-            ) {
-                // ISO / Flag Badge
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(ClxyColors.SubcardSurface)
-                        .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(12.dp)),
+                        .clickable(enabled = !state.running && !state.busy && !state.disconnecting) {
+                            Prefs.coreId = "firefox"
+                            AppState.update { it.copy(coreId = "firefox") }
+                        }
+                        .padding(vertical = 7.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = "DE",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        color = Color.White,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.Bolt,
+                            contentDescription = null,
+                            tint = if (isHyper) ClxyColors.CyanText else ClxyColors.TextDim,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Text(
+                            text = "CLXY Hyper",
+                            color = if (isHyper) ClxyColors.CyanText else ClxyColors.TextDim,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                 }
 
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(
-                            text = serverLabel,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White,
+                // CLXY Quantum (Aether)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(if (isQuantum) ClxyColors.QuantumPurple.copy(alpha = 0.28f) else Color.Transparent)
+                        .border(
+                            1.dp,
+                            if (isQuantum) ClxyColors.QuantumPurple.copy(alpha = 0.65f) else Color.Transparent,
+                            RoundedCornerShape(999.dp)
                         )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0x18FFFFFF))
-                                .border(0.6.dp, Color(0x20FFFFFF), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 5.dp, vertical = 1.dp),
-                        ) {
-                            Text(
-                                text = "VLESS",
-                                fontSize = 8.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                                color = ClxyColors.TextDim,
-                            )
+                        .clickable(enabled = !state.running && !state.busy && !state.disconnecting) {
+                            Prefs.coreId = "aether"
+                            AppState.update { it.copy(coreId = "aether") }
                         }
-                    }
-                    Spacer(Modifier.height(2.dp))
+                        .padding(vertical = 7.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        Text("🪐", fontSize = 12.sp)
                         Text(
-                            text = "سریع‌ترین گره پیشنهادی",
-                            fontSize = 11.sp,
-                            color = ClxyColors.TextDim,
-                        )
-                        Icon(
-                            imageVector = Icons.Rounded.KeyboardArrowDown,
-                            contentDescription = null,
-                            tint = ClxyColors.TextDim,
-                            modifier = Modifier.size(14.dp),
+                            text = "CLXY Quantum",
+                            color = if (isQuantum) ClxyColors.QuantumPurple else ClxyColors.TextDim,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
                         )
                     }
                 }
             }
 
-            // Ping Badge
-            Column(horizontalAlignment = Alignment.End) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .background(ClxyColors.EmeraldPing, CircleShape),
-                    )
+            Spacer(modifier = Modifier.height(sectionGap))
+
+            // Shield + Status Text
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                modifier = Modifier.testTag("home_status_row"),
+            ) {
+                ShieldIcon(color = shieldColor, sizeDp = 14f)
+                AnimatedContent(
+                    targetState = statusLabel,
+                    transitionSpec = { fadeIn(tween(240)) togetherWith fadeOut(tween(180)) },
+                    label = "statusLabelAnim",
+                ) { label ->
                     Text(
-                        text = "$latencyMs",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        color = Color.White,
+                        text = label,
+                        color = statusColor,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Medium,
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Large Tabular Timer
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.testTag("home_timer"),
+            ) {
+                if (hrsStr.isNotEmpty()) {
                     Text(
-                        text = "ms",
-                        fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = ClxyColors.TextDim,
+                        text = hrsStr,
+                        color = ClxyColors.TimerDim,
+                        fontSize = timerSizeSp,
+                        fontWeight = FontWeight.Normal,
+                        letterSpacing = 0.5.sp,
                     )
                 }
                 Text(
-                    text = "پینگ مستقیم",
-                    fontSize = 10.sp,
-                    color = ClxyColors.TextDim,
+                    text = minSecStr,
+                    color = ClxyColors.TextPrimary,
+                    fontSize = timerSizeSp,
+                    fontWeight = FontWeight.Normal,
+                    letterSpacing = 0.5.sp,
                 )
             }
-        }
-    }
-}
 
-@Composable
-private fun QuantumRouteCard(latencyMs: Int) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = Color(0xFF11131A),
-        border = BorderStroke(1.dp, ClxyColors.ObsidianBorder),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
+            Spacer(modifier = Modifier.height(sectionGap))
+
+            // Speed stats row
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 320.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                // Purple Lightning Icon Box
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = downRate,
+                            color = ClxyColors.TextPrimary,
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = " Mbp/s",
+                            color = ClxyColors.TextMuted,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Normal,
+                        )
+                    }
+                    Text("Download", color = ClxyColors.TextDim, fontSize = 11.sp)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = upRate,
+                            color = ClxyColors.TextPrimary,
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = " Mbp/s",
+                            color = ClxyColors.TextMuted,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Normal,
+                        )
+                    }
+                    Text("Upload", color = ClxyColors.TextDim, fontSize = 11.sp)
+                }
+            }
+
+            // Flexible Dotted World Map + Main Power Button
+            BoxWithConstraints(
+                modifier = Modifier
+                    .weight(1f, fill = true)
+                    .fillMaxWidth()
+                    .widthIn(max = 420.dp)
+                    .padding(vertical = 4.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                val mapHeight = maxHeight.coerceAtMost(220.dp)
+                val buttonDiameter = (maxHeight / 1.5f).coerceIn(72.dp, 132.dp)
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(ClxyColors.QuantumPurple.copy(alpha = 0.15f))
-                        .border(1.dp, ClxyColors.QuantumPurple.copy(alpha = 0.25f), RoundedCornerShape(12.dp)),
+                        .fillMaxWidth()
+                        .height(mapHeight),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Bolt,
-                        contentDescription = null,
-                        tint = ClxyColors.QuantumViolet,
-                        modifier = Modifier.size(22.dp),
+                    DottedWorldMap(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("home_world_map"),
+                        dotAlpha = if (isConnected || isConnecting) 0.54f else 0.44f,
+                        animated = true,
+                    )
+
+                    CosmicPowerButton(
+                        connected = isConnected,
+                        connecting = isConnecting,
+                        isQuantum = isQuantum,
+                        buttonSize = buttonDiameter,
+                        onClick = onToggle,
                     )
                 }
+            }
 
-                Column {
+            RouteTunnelBox(
+                connected = isConnected || isConnecting,
+                originCode = "AUTO",
+                originName = "Your Device",
+                originIp = "Direct Local",
+                destCode = destCode,
+                destName = destName,
+                destIp = destIp,
+            )
+
+            Spacer(modifier = Modifier.height(cardGap))
+
+            // In Hyper mode: show account quota and server selector card.
+            // In Quantum (Aether) mode: both are hidden (no location selection, zero login & unlimited).
+            if (isHyper) {
+                HomeDataUsageCard(
+                    quota = state.quota.ifBlank { Store.quota(context).orEmpty() },
+                    hasSession = Store.hasSession(context),
+                    email = Store.email(context).orEmpty(),
+                    onOpenSignIn = onOpenSignIn,
+                    modifier = Modifier.widthIn(max = 460.dp),
+                )
+
+                Spacer(modifier = Modifier.height(cardGap))
+
+                // Selected Server Card -> navigates to All Servers
+                Row(
+                    modifier = Modifier
+                        .testTag("home_server_card")
+                        .fillMaxWidth()
+                        .widthIn(max = 460.dp)
+                        .defaultMinSize(minHeight = 58.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(ClxyColors.CardSurface)
+                        .border(1.dp, ClxyColors.GlassBorder, RoundedCornerShape(12.dp))
+                        .clickable(onClick = onOpenServers)
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(13.dp),
+                        modifier = Modifier.weight(1f),
                     ) {
-                        Text(
-                            text = "مسیر Anycast کوانتومی",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White,
-                        )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFF2E1065))
-                                .border(0.6.dp, ClxyColors.QuantumPurple.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 5.dp, vertical = 1.dp),
-                        ) {
+                        CircularCountryFlag(countryCode = destCode, size = 34.dp)
+                        Column {
                             Text(
-                                text = "MASQUE",
-                                fontSize = 8.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFFD8B4FE),
+                                text = destName,
+                                color = ClxyColors.TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Text(
+                                    text = "$destIp • $pingLabel",
+                                    color = ClxyColors.TextMuted,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                SignalStrengthBars(pingMs = pingMs)
+                            }
                         }
                     }
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = "اتصال خودکار به کم‌ترافیک‌ترین لبه",
-                        fontSize = 11.sp,
-                        color = ClxyColors.TextDim,
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        contentDescription = "Choose Server",
+                        tint = ClxyColors.TextMuted,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
+
+                Spacer(modifier = Modifier.height(cardGap))
             }
 
-            // Right side: QUIC / H3 + ping
-            Column(horizontalAlignment = Alignment.End) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0x18FFFFFF))
-                        .border(0.6.dp, Color(0x1AFFFFFF), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 1.dp),
-                ) {
-                    Text(
-                        text = "QUIC / H3",
-                        fontSize = 9.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = ClxyColors.TextDim,
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .background(ClxyColors.EmeraldPing, CircleShape),
-                    )
-                    Text(
-                        text = "$latencyMs ms",
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        color = ClxyColors.EmeraldPing,
-                    )
-                }
-            }
+            // Mode Selector (Proxy SOCKS5 | VPN All Device)
+            ModePillGroup(
+                isVpn = state.mode == AppState.Mode.VPN,
+                onSelectMode = { isVpnMode ->
+                    val newMode = if (isVpnMode) AppState.Mode.VPN else AppState.Mode.PROXY
+                    Prefs.mode = newMode
+                    AppState.update { it.copy(mode = newMode) }
+                },
+                modifier = Modifier.widthIn(max = 460.dp),
+            )
+
+            Spacer(modifier = Modifier.height(if (compact) 8.dp else 12.dp))
         }
     }
 }
 
-// -------------------------------------------------------------
-// 4. CENTRAL CONNECT HERO BUTTON
-// -------------------------------------------------------------
 @Composable
-private fun StitchConnectHero(
-    phase: Phase,
+fun ShieldIcon(color: Color, sizeDp: Float = 14f) {
+    Canvas(modifier = Modifier.size(width = sizeDp.dp, height = (sizeDp * 1.14f).dp)) {
+        val w = size.width
+        val h = size.height
+        val path = Path().apply {
+            moveTo(w * 0.5f, h * 0.03f)
+            lineTo(w * 0.11f, h * 0.17f)
+            lineTo(w * 0.11f, h * 0.46f)
+            cubicTo(w * 0.11f, h * 0.69f, w * 0.27f, h * 0.91f, w * 0.50f, h * 0.97f)
+            cubicTo(w * 0.73f, h * 0.91f, w * 0.89f, h * 0.69f, w * 0.89f, h * 0.46f)
+            lineTo(w * 0.89f, h * 0.17f)
+            close()
+        }
+        drawPath(path = path, color = color, style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round))
+    }
+}
+
+@Composable
+private fun CosmicPowerButton(
+    connected: Boolean,
+    connecting: Boolean,
     isQuantum: Boolean,
+    buttonSize: Dp = 132.dp,
     onClick: () -> Unit,
 ) {
-    val isConnected = phase == Phase.On
-    val isConnecting = phase == Phase.Connecting || phase == Phase.Disconnecting
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.92f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "powerPressScale",
+    )
 
-    val transition = rememberInfiniteTransition(label = "heroPulse")
-    val pulseHalo by transition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(
-            tween(2200, easing = FastOutSlowInEasing),
-            RepeatMode.Reverse,
-        ),
-        label = "pulseHalo",
-    )
-    val spinArc by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            tween(2000, easing = LinearEasing),
-        ),
-        label = "spinArc",
-    )
-    val beamOffset by transition.animateFloat(
+    val infinite = rememberInfiniteTransition(label = "powerPulse")
+    val phase1 by infinite.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            tween(1800, easing = LinearEasing),
+            animation = tween(2400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
         ),
-        label = "beamOffset",
+        label = "phase1",
     )
+    val idleBreath by infinite.animateFloat(
+        initialValue = 0.98f,
+        targetValue = 1.04f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2200, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "idleBreath",
+    )
+    val phase2 = (phase1 + 0.5f) % 1f
 
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-
-    val accentColor = if (isQuantum) ClxyColors.QuantumPurple else ClxyColors.CyanBright
+    val glowPrimary by animateColorAsState(
+        targetValue = when {
+            connected -> if (isQuantum) ClxyColors.QuantumPurple else ClxyColors.CyanGlow
+            connecting -> ClxyColors.AmberWarning
+            else -> ClxyColors.BluePrimary.copy(alpha = 0.5f)
+        },
+        animationSpec = tween(420),
+        label = "glowPrimary",
+    )
+    val glowSecondary by animateColorAsState(
+        targetValue = when {
+            connected -> if (isQuantum) ClxyColors.QuantumViolet else ClxyColors.PurplePrimary
+            connecting -> ClxyColors.BluePrimary
+            else -> ClxyColors.PurplePrimary.copy(alpha = 0.4f)
+        },
+        animationSpec = tween(420),
+        label = "glowSecondary",
+    )
 
     Box(
         modifier = Modifier
-            .size(196.dp)
-            .scale(if (pressed) 0.96f else 1f),
+            .size(buttonSize * 1.46f)
+            .scale(pressScale),
         contentAlignment = Alignment.Center,
     ) {
-        // Atmospheric Halo (Glowing when connected or connecting)
-        if (isConnected || isConnecting) {
-            Box(
-                modifier = Modifier
-                    .size(200.dp)
-                    .scale(pulseHalo)
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                accentColor.copy(alpha = if (isConnected) 0.22f else 0.14f),
-                                Color.Transparent,
+        if (connected || connecting) {
+            listOf(phase1, phase2).forEach { p ->
+                val ringScale = 0.96f + p * 0.42f
+                val ringAlpha = (1f - p) * 0.52f
+                Box(
+                    modifier = Modifier
+                        .size(buttonSize)
+                        .scale(ringScale)
+                        .clip(CircleShape)
+                        .border(
+                            width = 2.dp,
+                            brush = Brush.linearGradient(
+                                listOf(
+                                    glowPrimary.copy(alpha = ringAlpha),
+                                    glowSecondary.copy(alpha = ringAlpha),
+                                ),
+                            ),
+                            shape = CircleShape,
+                        )
+                        .background(
+                            Brush.radialGradient(
+                                listOf(
+                                    glowPrimary.copy(alpha = ringAlpha * 0.25f),
+                                    Color.Transparent,
+                                ),
                             ),
                         ),
-                        shape = CircleShape,
-                    )
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(buttonSize * 1.08f)
+                    .scale(idleBreath)
+                    .clip(CircleShape)
+                    .border(
+                        1.dp,
+                        (if (isQuantum) ClxyColors.QuantumPurple else ClxyColors.CyanGlow).copy(alpha = 0.16f),
+                        CircleShape
+                    ),
             )
         }
 
-        // Outer Clickable Button Frame (176dp x 176dp)
+        val coreStart by animateColorAsState(
+            targetValue = when {
+                connected -> if (isQuantum) ClxyColors.QuantumPurple else ClxyColors.CyanBright
+                connecting -> ClxyColors.AmberWarning
+                else -> Color(0xFF1E293B)
+            },
+            animationSpec = tween(380),
+            label = "coreStart",
+        )
+        val coreMid by animateColorAsState(
+            targetValue = when {
+                connected -> if (isQuantum) Color(0xFF4C1D95) else ClxyColors.BlueDeep
+                connecting -> ClxyColors.BluePrimary
+                else -> Color(0xFF0F172A)
+            },
+            animationSpec = tween(380),
+            label = "coreMid",
+        )
+        val coreEnd by animateColorAsState(
+            targetValue = when {
+                connected -> if (isQuantum) ClxyColors.QuantumViolet else ClxyColors.PurplePrimary
+                connecting -> ClxyColors.PurplePrimary
+                else -> Color(0xFF1E1B4B)
+            },
+            animationSpec = tween(380),
+            label = "coreEnd",
+        )
+        val borderColor by animateColorAsState(
+            targetValue = if (connected || connecting) Color(0x99BAE6FD) else Color(0x4794A3B8),
+            animationSpec = tween(320),
+            label = "powerBorder",
+        )
+
         Box(
             modifier = Modifier
-                .size(174.dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color(0xFF131722), Color(0xFF0B0D14)),
-                    ),
-                )
-                .border(
-                    width = 1.5.dp,
-                    color = if (isConnected) accentColor.copy(alpha = 0.45f) else Color(0x1AFFFFFF),
+                .testTag("home_power_button")
+                .size(buttonSize)
+                .shadow(
+                    elevation = if (connected) 28.dp else 14.dp,
                     shape = CircleShape,
+                    ambientColor = if (connected) glowPrimary else Color.Black,
+                    spotColor = if (connected) glowSecondary else Color.Black,
                 )
+                .clip(CircleShape)
+                .background(Brush.linearGradient(listOf(coreStart, coreMid, coreEnd)))
+                .border(1.5.dp, borderColor, CircleShape)
                 .clickable(
-                    enabled = phase != Phase.Disconnecting,
-                    interactionSource = interaction,
+                    interactionSource = interactionSource,
                     indication = null,
                     onClick = onClick,
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            if (isConnected) {
-                // CONNECTED VIEW:
-                if (isQuantum) {
-                    // Quantum Warp Orb View
-                    QuantumConnectedOrb(beamOffset = beamOffset)
-                } else {
-                    // Glowing Cyber Globe with flight arch from Tehran to Frankfurt!
-                    CyberGlobeView(beamOffset = beamOffset)
-                }
-            } else if (isConnecting) {
-                // CONNECTING VIEW: Smooth rotating cyber arc
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val radius = size.minDimension / 2f
-                    val center = Offset(size.width / 2f, size.height / 2f)
-                    rotate(spinArc) {
-                        drawArc(
-                            color = accentColor,
-                            startAngle = -90f,
-                            sweepAngle = 140f,
-                            useCenter = false,
-                            topLeft = Offset(center.x - radius * 0.84f, center.y - radius * 0.84f),
-                            size = Size(radius * 1.68f, radius * 1.68f),
-                            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round),
-                        )
-                    }
-                }
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    CircularProgressIndicator(
-                        color = accentColor,
-                        strokeWidth = 2.5.dp,
-                        modifier = Modifier.size(36.dp),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "در حال اتصال...",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                    )
-                }
+            if (connecting) {
+                CircularProgressIndicator(
+                    color = Color.White,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(buttonSize * 0.33f),
+                )
             } else {
-                // STANDBY VIEW: Minimalist Power Icon & Text
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(CircleShape)
-                            .background(Color(0x0AFFFFFF)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.PowerSettingsNew,
-                            contentDescription = "اتصال",
-                            tint = accentColor,
-                            modifier = Modifier.size(30.dp),
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "اتصال",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFF1F5F9),
-                    )
-                    Text(
-                        text = "CONNECT",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.4.sp,
-                        color = ClxyColors.TextDim,
-                    )
-                }
-            }
-        }
-    }
-}
-
-// -------------------------------------------------------------
-// CYBER GLOBE COMPOSABLE (Hyper connected state)
-// -------------------------------------------------------------
-@Composable
-private fun CyberGlobeView(beamOffset: Float) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val center = Offset(size.width / 2f, size.height / 2f)
-            val r = size.minDimension / 2f - 4.dp.toPx()
-
-            // 1. Globe Base Sphere
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF192336), Color(0xFF0E121C), Color(0xFF07090F)),
-                    center = Offset(center.x - r * 0.15f, center.y - r * 0.25f),
-                    radius = r * 1.2f,
-                ),
-                radius = r,
-                center = center,
-            )
-            drawCircle(
-                color = Color(0x5500F0FF),
-                radius = r,
-                center = center,
-                style = Stroke(width = 1.2.dp.toPx()),
-            )
-
-            // 2. Latitude and Longitude Grid Lines
-            // Equator dashed
-            drawLine(
-                color = Color(0x3000F0FF),
-                start = Offset(center.x - r, center.y),
-                end = Offset(center.x + r, center.y),
-                strokeWidth = 0.8.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f), 0f),
-            )
-            // Latitude upper & lower arcs
-            drawOval(
-                color = Color(0x12FFFFFF),
-                topLeft = Offset(center.x - r, center.y - r * 0.45f),
-                size = Size(r * 2f, r * 0.9f),
-                style = Stroke(width = 0.7.dp.toPx()),
-            )
-            // Longitude center meridian
-            drawOval(
-                color = Color(0x12FFFFFF),
-                topLeft = Offset(center.x - r * 0.45f, center.y - r),
-                size = Size(r * 0.9f, r * 2f),
-                style = Stroke(width = 0.7.dp.toPx()),
-            )
-
-            // 3. Stylized Continents (Europe / Middle East outline)
-            val continentPath = Path().apply {
-                moveTo(center.x - r * 0.45f, center.y - r * 0.35f)
-                quadraticBezierTo(center.x - r * 0.2f, center.y - r * 0.5f, center.x + r * 0.1f, center.y - r * 0.4f)
-                quadraticBezierTo(center.x + r * 0.45f, center.y - r * 0.25f, center.x + r * 0.35f, center.y + r * 0.05f)
-                quadraticBezierTo(center.x + r * 0.1f, center.y + r * 0.25f, center.x - r * 0.15f, center.y + r * 0.15f)
-                close()
-            }
-            drawPath(
-                path = continentPath,
-                color = Color(0x401A2538),
-            )
-            drawPath(
-                path = continentPath,
-                color = Color(0x2800F0FF),
-                style = Stroke(width = 0.6.dp.toPx()),
-            )
-
-            // 4. Flight Path: Origin (Tehran: x=center.x + r*0.35, y=center.y + r*0.05)
-            //               Destination (Frankfurt: x=center.x - r*0.35, y=center.y - r*0.35)
-            val tehran = Offset(center.x + r * 0.32f, center.y + r * 0.06f)
-            val frankfurt = Offset(center.x - r * 0.30f, center.y - r * 0.34f)
-            val control = Offset(center.x - r * 0.05f, center.y - r * 0.65f)
-
-            val archPath = Path().apply {
-                moveTo(tehran.x, tehran.y)
-                quadraticBezierTo(control.x, control.y, frankfurt.x, frankfurt.y)
-            }
-            // Guide dashed arch
-            drawPath(
-                path = archPath,
-                color = Color(0x3500F0FF),
-                style = Stroke(width = 1.4.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f), 0f)),
-            )
-
-            // Animated Beam Pulse
-            val t = beamOffset
-            // Quadratic Bezier interpolation: B(t) = (1-t)^2 P0 + 2(1-t)t P1 + t^2 P2
-            val bx = (1 - t) * (1 - t) * tehran.x + 2 * (1 - t) * t * control.x + t * t * frankfurt.x
-            val by = (1 - t) * (1 - t) * tehran.y + 2 * (1 - t) * t * control.y + t * t * frankfurt.y
-            drawCircle(
-                color = ClxyColors.CyanBright,
-                radius = 3.dp.toPx(),
-                center = Offset(bx, by),
-            )
-
-            // Nodes
-            // Origin node (Tehran)
-            drawCircle(color = Color(0x4000F0FF), radius = 6.dp.toPx(), center = tehran)
-            drawCircle(color = Color(0xFF090A0F), radius = 3.dp.toPx(), center = tehran)
-            drawCircle(color = ClxyColors.CyanBright, radius = 1.5.dp.toPx(), center = tehran)
-
-            // Destination node (Frankfurt)
-            drawCircle(color = Color(0x4010B981), radius = 7.dp.toPx(), center = frankfurt)
-            drawCircle(color = Color(0xFF090A0F), radius = 3.5.dp.toPx(), center = frankfurt)
-            drawCircle(color = ClxyColors.EmeraldPing, radius = 1.8.dp.toPx(), center = frankfurt)
-        }
-
-        // Overlay Telemetry Pill
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 12.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xE6090C14))
-                .border(0.8.dp, Color(0x4000F0FF), RoundedCornerShape(20.dp))
-                .padding(horizontal = 8.dp, vertical = 3.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Box(modifier = Modifier.size(5.dp).background(ClxyColors.EmeraldPing, CircleShape))
-                Text(
-                    text = "DE ⇄ IR",
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    color = ClxyColors.CyanBright,
-                )
-                Text(
-                    text = "· AES-256",
-                    fontSize = 8.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = ClxyColors.TextDim,
+                Icon(
+                    imageVector = Icons.Rounded.PowerSettingsNew,
+                    contentDescription = if (connected) "Disconnect VPN" else "Connect VPN",
+                    tint = Color.White,
+                    modifier = Modifier.size(buttonSize * 0.35f),
                 )
             }
         }
-
-        // Quick Disconnect Prompt
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 10.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color(0x99000000))
-                .padding(horizontal = 7.dp, vertical = 2.dp),
-        ) {
-            Text(
-                text = "لمس جهت قطع",
-                fontSize = 8.sp,
-                color = ClxyColors.TextDim,
-            )
-        }
     }
 }
 
-// -------------------------------------------------------------
-// QUANTUM CONNECTED ORB COMPOSABLE
-// -------------------------------------------------------------
 @Composable
-private fun QuantumConnectedOrb(beamOffset: Float) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val center = Offset(size.width / 2f, size.height / 2f)
-            val r = size.minDimension / 2f - 4.dp.toPx()
-
-            // Quantum Sphere
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF2E1065), Color(0xFF1E103A), Color(0xFF090A0F)),
-                    center = center,
-                    radius = r,
-                ),
-                radius = r,
-                center = center,
-            )
-            drawCircle(
-                color = ClxyColors.QuantumPurple.copy(alpha = 0.5f),
-                radius = r,
-                center = center,
-                style = Stroke(width = 1.2.dp.toPx()),
-            )
-
-            // Dynamic warp rings
-            drawCircle(
-                color = ClxyColors.QuantumViolet.copy(alpha = 0.25f),
-                radius = r * (0.4f + 0.4f * beamOffset),
-                center = center,
-                style = Stroke(width = 1.dp.toPx()),
-            )
-        }
-
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = "∞",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                color = ClxyColors.QuantumViolet,
-            )
-        }
-
-        // Telemetry Pill
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 12.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xE6090C14))
-                .border(0.8.dp, ClxyColors.QuantumPurple.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
-                .padding(horizontal = 8.dp, vertical = 3.dp),
-        ) {
-            Text(
-                text = "MASQUE QUIC · ZERO-RTT",
-                fontSize = 8.5.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFFE9D5FF),
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 10.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color(0x99000000))
-                .padding(horizontal = 7.dp, vertical = 2.dp),
-        ) {
-            Text(
-                text = "لمس جهت قطع",
-                fontSize = 8.sp,
-                color = ClxyColors.TextDim,
-            )
-        }
-    }
-}
-
-// -------------------------------------------------------------
-// 5. STATUS BADGE
-// -------------------------------------------------------------
-@Composable
-private fun StitchStatusBadge(
-    phase: Phase,
-    isQuantum: Boolean,
-    state: AppState.State,
-    onClick: () -> Unit,
+private fun RouteTunnelBox(
+    connected: Boolean,
+    originCode: String,
+    originName: String,
+    originIp: String,
+    destCode: String,
+    destName: String,
+    destIp: String,
 ) {
-    val dotColor = when (phase) {
-        Phase.On -> ClxyColors.EmeraldPing
-        Phase.Connecting, Phase.Disconnecting -> ClxyColors.AmberWarning
-        Phase.Error -> ClxyColors.RedDisconnectStart
-        Phase.Off -> if (isQuantum) ClxyColors.QuantumPurple else ClxyColors.CyanBright
-    }
+    val infinite = rememberInfiniteTransition(label = "routeFlow")
+    val dashOffset by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = -16f,
+        animationSpec = infiniteRepeatable(tween(700, easing = LinearEasing)),
+        label = "dashOffset",
+    )
+    val packetProgress by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1150, easing = LinearEasing)),
+        label = "packetProgress",
+    )
+    val boxBorder by animateColorAsState(
+        targetValue = if (connected) Color(0x4D38BDF8) else Color(0x2294A3B8),
+        animationSpec = tween(320),
+        label = "routeBorder",
+    )
 
-    val statusText = when (phase) {
-        Phase.On -> if (isQuantum) "متصل به Anycast کوانتوم • MASQUE" else "متصل · رمزنگاری پیشرفته فعال"
-        Phase.Connecting -> if (isQuantum) "در حال اتصال به مسیر Anycast..." else "در حال برقراری تونل امن..."
-        Phase.Disconnecting -> "در حال قطع اتصال..."
-        Phase.Error -> "خطا در برقراری اتصال · لمس برای لاگ"
-        Phase.Off -> if (isQuantum) "آماده اتصال کوانتومی • Ether Warp" else "آماده اتصال · تونل محافظت‌شده"
-    }
-
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = ClxyColors.ObsidianCard,
-        border = BorderStroke(1.dp, ClxyColors.ObsidianBorder),
-        modifier = Modifier.clickable(onClick = onClick),
+    Row(
+        modifier = Modifier
+            .testTag("home_route_tunnel_box")
+            .fillMaxWidth()
+            .widthIn(max = 380.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(ClxyColors.RouteBoxSurface)
+            .border(1.dp, boxBorder, RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
+        // Origin node
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp, Alignment.End),
+            modifier = Modifier
+                .weight(1f)
+                .testTag("home_route_origin"),
         ) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                modifier = Modifier.weight(1f, fill = false),
+            ) {
+                Text(
+                    text = originName,
+                    color = ClxyColors.TextPrimary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = originIp,
+                    color = ClxyColors.TextMuted,
+                    fontSize = 9.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            CircularCountryFlag(
+                countryCode = originCode,
+                size = 24.dp,
+                modifier = Modifier.testTag("home_origin_flag"),
+            )
+        }
+
+        // Animated dashed arrow + glowing packet bead when connected
+        Canvas(
+            modifier = Modifier
+                .testTag("home_route_arrow")
+                .padding(horizontal = 8.dp)
+                .width(54.dp)
+                .height(14.dp),
+        ) {
+            val cy = size.height / 2f
+            val startX = 2.dp.toPx()
+            val endX = size.width - 4.dp.toPx()
+            val brush = if (connected) {
+                Brush.horizontalGradient(listOf(ClxyColors.CyanGlow, ClxyColors.BluePrimary, Color(0xFFA855F7)))
+            } else {
+                Brush.horizontalGradient(listOf(ClxyColors.TimerDim, ClxyColors.TimerDim))
+            }
+            drawLine(
+                brush = brush,
+                start = Offset(startX, cy),
+                end = Offset(endX, cy),
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Round,
+                pathEffect = if (connected) {
+                    PathEffect.dashPathEffect(floatArrayOf(8f, 8f), dashOffset)
+                } else {
+                    PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
+                },
+            )
+            if (connected) {
+                val beadX = startX + (endX - startX) * packetProgress
+                drawCircle(
+                    color = ClxyColors.CyanGlow.copy(alpha = 0.35f),
+                    radius = 5.dp.toPx(),
+                    center = Offset(beadX, cy),
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = 2.2.dp.toPx(),
+                    center = Offset(beadX, cy),
+                )
+            }
+            val head = Path().apply {
+                moveTo(endX - 5.dp.toPx(), cy - 4.dp.toPx())
+                lineTo(endX, cy)
+                lineTo(endX - 5.dp.toPx(), cy + 4.dp.toPx())
+            }
+            drawPath(
+                head,
+                color = if (connected) Color(0xFFA855F7) else ClxyColors.TimerDim,
+                style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+            )
+        }
+
+        // Destination node
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            CircularCountryFlag(
+                countryCode = destCode,
+                size = 24.dp,
+                modifier = Modifier.testTag("home_dest_flag"),
+            )
+            Column {
+                Text(
+                    text = destName,
+                    color = ClxyColors.TextPrimary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = destIp,
+                    color = if (connected) ClxyColors.CyanText else ClxyColors.TextMuted,
+                    fontSize = 9.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModePillGroup(
+    isVpn: Boolean,
+    onSelectMode: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color(0xD10C1328))
+            .border(1.dp, Color(0x2994A3B8), RoundedCornerShape(999.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        listOf(
+            Triple(true, "VPN Mode", "All Device"),
+            Triple(false, "Proxy Mode", "SOCKS5 1080")
+        ).forEach { (vpnChoice, label, subtitle) ->
+            val active = (vpnChoice == isVpn)
+            val pillScale by animateFloatAsState(
+                targetValue = if (active) 1.0f else 0.98f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                label = "modeScale_$label",
+            )
+            val borderCol by animateColorAsState(
+                targetValue = if (active) ClxyColors.CyanGlow.copy(alpha = 0.62f) else Color.Transparent,
+                animationSpec = tween(240),
+                label = "modeBorder_$label",
+            )
+            val titleCol by animateColorAsState(
+                targetValue = if (active) Color.White else ClxyColors.TextMuted,
+                animationSpec = tween(220),
+                label = "modeText_$label",
+            )
             Box(
                 modifier = Modifier
-                    .size(6.dp)
-                    .background(dotColor, CircleShape),
-            )
-            Text(
-                text = statusText,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                color = if (phase == Phase.On) Color.White else ClxyColors.TextDim,
-            )
-        }
-    }
-}
-
-// -------------------------------------------------------------
-// 6. BOTTOM CARDS (Hyper Quota vs Quantum Feature)
-// -------------------------------------------------------------
-@Composable
-private fun HyperQuotaCard(
-    onOpenAccounts: () -> Unit,
-    onOpenSignIn: () -> Unit,
-) {
-    val context = LocalContext.current
-    val active = Store.activeAccount(context)
-    val accounts = Store.accounts(context)
-    val (fraction, usageText) = Store.activeAccountQuotaUsage(context)
-
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = ClxyColors.ObsidianCard,
-        border = BorderStroke(1.dp, ClxyColors.ObsidianBorder),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onOpenAccounts),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                    .weight(1f)
+                    .scale(pillScale)
+                    .defaultMinSize(minHeight = 44.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .then(
+                        if (active) {
+                            Modifier.background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        Color(0x3D00E5FF),
+                                        Color(0x4D3B82F6),
+                                        Color(0x4D9333EA),
+                                    ),
+                                ),
+                            )
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .border(1.dp, borderCol, RoundedCornerShape(999.dp))
+                    .clickable { onSelectMode(vpnChoice) }
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                contentAlignment = Alignment.Center,
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .background(ClxyColors.CyanBright, CircleShape),
-                    )
                     Text(
-                        text = "حساب فعال:",
+                        text = label,
+                        color = titleCol,
                         fontSize = 12.sp,
-                        color = ClxyColors.TextDim,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = active?.email?.ifBlank { "user_71@clxy" } ?: "user_71@clxy",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        color = Color.White,
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0x18FFFFFF))
-                        .border(0.6.dp, Color(0x20FFFFFF), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 7.dp, vertical = 2.dp),
-                ) {
-                    Text(
-                        text = if (accounts.isNotEmpty()) "${accounts.size} حساب متصل" else "چرخش خودکار فعال",
+                        text = subtitle,
+                        color = if (active) ClxyColors.CyanText else ClxyColors.TextDim,
                         fontSize = 10.sp,
-                        color = ClxyColors.TextDim,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
                     )
                 }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Progress Bar (6dp height)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(Color(0xFF1E293B)),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction)
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(ClxyColors.CyanBright),
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = usageText,
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    color = Color.White,
-                )
-                Text(
-                    text = "${(fraction * 100).toInt()}% مصرف شده",
-                    fontSize = 10.5.sp,
-                    color = ClxyColors.TextDim,
-                )
             }
         }
     }
 }
 
 @Composable
-private fun QuantumFeatureCard() {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = Color(0xFF11131A),
-        border = BorderStroke(1.dp, ClxyColors.ObsidianBorder),
-        modifier = Modifier.fillMaxWidth(),
+private fun HomeDataUsageCard(
+    quota: String,
+    hasSession: Boolean,
+    email: String,
+    onOpenSignIn: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val usedLabel = if (quota.isNotBlank()) quota else if (hasSession) "Plan Active" else "No active account"
+    val subtitle = if (email.isNotBlank()) email else if (hasSession) "CLXY Cloud Account" else "Sign in to track quota"
+
+    Row(
+        modifier = modifier
+            .testTag("home_data_usage_card")
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(ClxyColors.RouteBoxSurface)
+            .border(1.dp, ClxyColors.GlassBorder, RoundedCornerShape(12.dp))
+            .clickable(enabled = !hasSession, onClick = onOpenSignIn)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            // Row 1: Unlimited
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = "∞",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        color = ClxyColors.QuantumViolet,
-                    )
-                    Text(
-                        text = "ترافیک نامحدود کوانتوم (Unlimited)",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White,
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(ClxyColors.QuantumPurple.copy(alpha = 0.15f))
-                        .border(0.8.dp, ClxyColors.QuantumPurple.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                ) {
-                    Text(
-                        text = "نامحدود",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD8B4FE),
-                    )
-                }
-            }
-
-            // Subtle Divider
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(0.6.dp)
-                    .background(Color(0x14FFFFFF)),
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Account Data / Quota",
+                color = ClxyColors.TextDim,
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Medium,
             )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = usedLabel,
+                color = ClxyColors.TextPrimary,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = subtitle,
+                color = ClxyColors.TextMuted,
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
 
-            // Row 2: Zero Login
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Check,
-                        contentDescription = null,
-                        tint = ClxyColors.EmeraldPing,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(
-                        text = "بدون نیاز به ثبت نام و ورود اکانت",
-                        fontSize = 12.sp,
-                        color = ClxyColors.TextSecondary,
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF064E3B))
-                        .border(0.6.dp, ClxyColors.EmeraldPing.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 1.dp),
-                ) {
-                    Text(
-                        text = "ZERO LOGIN",
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        color = ClxyColors.EmeraldPing,
-                    )
-                }
-            }
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(34.dp)
+                .background(Color(0x2E94A3B8)),
+        )
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 14.dp),
+            horizontalAlignment = Alignment.End,
+        ) {
+            Text(
+                text = "CLXY Cloud",
+                color = ClxyColors.TextDim,
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = if (hasSession) "Connected" else "Add Account",
+                color = if (hasSession) ClxyColors.CyanText else ClxyColors.AmberWarning,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = if (hasSession) "Sync Active" else "Tap to sign in",
+                color = ClxyColors.TextMuted,
+                fontSize = 10.sp,
+                maxLines = 1,
+            )
         }
     }
 }
