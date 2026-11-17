@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.os.Build
 
 object Notifications {
@@ -31,12 +32,21 @@ object Notifications {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return Notification.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
+        val largeIcon = runCatching {
+            BitmapFactory.decodeResource(context.resources, R.drawable.clxy_logo)
+        }.getOrNull()
+
+        val builder = Notification.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_logo)
             .setContentTitle(title)
             .setContentText(text)
             .setContentIntent(pending)
             .setOngoing(true)
-            .build()
+
+        if (largeIcon != null) {
+            builder.setLargeIcon(largeIcon)
+        }
+
+        return builder.build()
     }
 }

@@ -1,5 +1,6 @@
 ﻿package com.clxypro.vpn.ui
 
+import android.net.TrafficStats
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -147,11 +148,54 @@ fun HomeScreen(
     val hrsStr = if (hrs > 0) String.format(Locale.US, "%02d:", hrs) else ""
     val minSecStr = String.format(Locale.US, "%02d:%02d", mins, secs)
 
-    // Speed telemetry
-    val (downRate, upRate) = if (isConnected) {
-        Pair("14,2", "3,8")
-    } else {
-        Pair("0,0", "0,0")
+    // Real-time Speed telemetry
+    var downRate by remember { mutableStateOf("0,0") }
+    var upRate by remember { mutableStateOf("0,0") }
+
+    LaunchedEffect(isConnected) {
+        if (!isConnected) {
+            downRate = "0,0"
+            upRate = "0,0"
+            return@LaunchedEffect
+        }
+        fun sampleRx(): Long {
+            val total = TrafficStats.getTotalRxBytes()
+            if (total > 0L) return total
+            val uid = TrafficStats.getUidRxBytes(android.os.Process.myUid())
+            return if (uid > 0L) uid else 0L
+        }
+        fun sampleTx(): Long {
+            val total = TrafficStats.getTotalTxBytes()
+            if (total > 0L) return total
+            val uid = TrafficStats.getUidTxBytes(android.os.Process.myUid())
+            return if (uid > 0L) uid else 0L
+        }
+
+        var lastRx = sampleRx()
+        var lastTx = sampleTx()
+        var lastTime = SystemClock.elapsedRealtime()
+
+        while (true) {
+            delay(1000L)
+            val now = SystemClock.elapsedRealtime()
+            val curRx = sampleRx()
+            val curTx = sampleTx()
+
+            val elapsedSec = ((now - lastTime) / 1000f).coerceAtLeast(0.1f)
+            val rxBytes = (curRx - lastRx).coerceAtLeast(0L)
+            val txBytes = (curTx - lastTx).coerceAtLeast(0L)
+
+            // Convert bytes/sec to Megabits/sec (Mbps): (bytes * 8) / 1_000_000
+            val downMbpsVal = (rxBytes * 8f / 1_000_000f) / elapsedSec
+            val upMbpsVal = (txBytes * 8f / 1_000_000f) / elapsedSec
+
+            downRate = String.format(Locale.US, "%.1f", downMbpsVal).replace('.', ',')
+            upRate = String.format(Locale.US, "%.1f", upMbpsVal).replace('.', ',')
+
+            lastRx = curRx
+            lastTx = curTx
+            lastTime = now
+        }
     }
 
     // Destination routing

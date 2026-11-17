@@ -107,6 +107,12 @@ class MainActivity : ComponentActivity() {
                     onDispose { stop() }
                 }
 
+                androidx.compose.runtime.LaunchedEffect(state.coreId) {
+                    if (state.coreId == "aether") {
+                        activeTab = MainTab.HOME
+                    }
+                }
+
                 if (activeTab != MainTab.HOME) {
                     BackHandler { activeTab = MainTab.HOME }
                 }
@@ -116,11 +122,13 @@ class MainActivity : ComponentActivity() {
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets.statusBars,
                         bottomBar = {
-                            ClxyBottomNavBar(
-                                activeTab = activeTab,
-                                onSelectTab = { activeTab = it },
-                                isQuantum = state.coreId == "aether",
-                            )
+                            if (state.coreId != "aether") {
+                                ClxyBottomNavBar(
+                                    activeTab = activeTab,
+                                    onSelectTab = { activeTab = it },
+                                    isQuantum = false,
+                                )
+                            }
                         },
                     ) { innerPadding ->
                         Box(
