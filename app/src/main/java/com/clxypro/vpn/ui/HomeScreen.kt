@@ -200,14 +200,22 @@ fun HomeScreen(
     }
 
     // Destination routing
+    val pinned = Prefs.server("firefox")
+    val pinnedLabel = Prefs.serverLabel("firefox")
     val destCode = if (isQuantum) "CF" else {
-        if (state.exit.isNotEmpty()) state.exit.take(2).uppercase() else "DE"
+        if (state.exit.isNotEmpty()) state.exit.take(2).uppercase()
+        else if (pinned.isNotBlank() && pinned != "fastest") inferCountryCode(pinnedLabel, pinned)
+        else "REC"
     }
     val destName = if (isQuantum) "Cloudflare Anycast Mesh" else {
-        if (state.exit.isNotEmpty()) state.exit else Prefs.serverLabel("firefox").ifBlank { "Auto Route · Frankfurt" }
+        if (state.exit.isNotEmpty()) state.exit
+        else if (pinnedLabel.isNotBlank()) pinnedLabel
+        else "Auto Route · Recommended"
     }
     val destIp = if (isQuantum) "Direct MASQUE Route" else {
-        if (state.exitIp.isNotEmpty()) state.exitIp else "Direct Tunnel"
+        if (state.exitIp.isNotEmpty()) state.exitIp
+        else if (isConnected) "Direct Tunnel"
+        else "Auto Route"
     }
     val pingMs = state.latencyMs.takeIf { it > 0 } ?: if (isConnected) 42 else -1
     val pingLabel = if (pingMs > 0) "${pingMs}ms" else if (isConnected) "Online" else "Ready"

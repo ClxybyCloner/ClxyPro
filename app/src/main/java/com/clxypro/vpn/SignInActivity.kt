@@ -138,17 +138,12 @@ private fun SignInScreen() {
     }
 
     fun start() {
-        val binary = Store.binary(context)
-        if (!binary.exists()) {
-            error = context.getString(R.string.error_engine_missing)
-            return
-        }
         if (email.isBlank() || password.isBlank()) {
             error = context.getString(R.string.sign_in_missing)
             return
         }
         val address = email.trim()
-        val driver = FxaLogin(binary, Store.workDir(context))
+        val driver = FxaLogin(Store.workDir(context))
         login = driver
         error = null
         detail = ""
@@ -182,6 +177,7 @@ private fun SignInScreen() {
                 val token = runCatching { Store.sessionFile(context).readText().trim() }
                     .getOrDefault("")
                 if (token.length >= TOKEN_LENGTH) {
+                    Store.setEmail(context, address)
                     activity?.deliver(token, address)
                     return@launch
                 }
@@ -190,7 +186,9 @@ private fun SignInScreen() {
             val failure = describeFailure(context, problem)
             error = failure.first
             detail = failure.second
-            if (problem.orEmpty().contains("errno 125")) showUnblock = true
+            if (problem.orEmpty().contains("errno 125") || problem.orEmpty().contains("authorization", ignoreCase = true)) {
+                showUnblock = true
+            }
         }
     }
 
@@ -275,7 +273,9 @@ private fun SignInScreen() {
                         Text(
                             text = when (asking) {
                                 LoginPrompt.Totp -> "Two-Factor Authentication"
+                                LoginPrompt.EmailCode -> "Email Verification Code"
                                 LoginPrompt.Captcha -> "Security Verification"
+                                LoginPrompt.UnblockCode -> "Account Unblock Code"
                                 else -> "Verification Required"
                             },
                             color = ClxyColors.CyanText,
@@ -286,7 +286,9 @@ private fun SignInScreen() {
                         Text(
                             text = when (asking) {
                                 LoginPrompt.Totp -> "Enter the 6-digit authentication code from your app."
+                                LoginPrompt.EmailCode -> "Enter the 6-digit confirmation code sent to your email."
                                 LoginPrompt.Captcha -> "Type the characters shown in the picture below."
+                                LoginPrompt.UnblockCode -> "Enter the security unblock code sent to your email."
                                 else -> "Enter the requested verification code."
                             },
                             color = ClxyColors.TextMuted,
@@ -305,7 +307,7 @@ private fun SignInScreen() {
                             singleLine = true,
                             colors = clxyTextFieldColors(),
                             keyboardOptions = KeyboardOptions(
-                                keyboardType = if (asking == LoginPrompt.Totp) KeyboardType.Number else KeyboardType.Text
+                                keyboardType = if (asking == LoginPrompt.Totp || asking == LoginPrompt.EmailCode) KeyboardType.Number else KeyboardType.Text
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )

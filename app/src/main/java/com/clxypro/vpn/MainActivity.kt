@@ -122,13 +122,11 @@ class MainActivity : ComponentActivity() {
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets.statusBars,
                         bottomBar = {
-                            if (state.coreId != "aether") {
-                                ClxyBottomNavBar(
-                                    activeTab = activeTab,
-                                    onSelectTab = { activeTab = it },
-                                    isQuantum = false,
-                                )
-                            }
+                            ClxyBottomNavBar(
+                                activeTab = activeTab,
+                                onSelectTab = { activeTab = it },
+                                isQuantum = state.coreId == "aether",
+                            )
                         },
                     ) { innerPadding ->
                         Box(

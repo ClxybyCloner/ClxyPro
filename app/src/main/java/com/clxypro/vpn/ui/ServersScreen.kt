@@ -26,7 +26,9 @@ import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.CloudQueue
 import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -111,20 +113,6 @@ fun ServersScreen(
     val serverPings = remember { mutableStateMapOf<String, Int>() }
     var lastPingSummary by remember { mutableStateOf<String?>(null) }
 
-    val defaultServers = remember {
-        listOf(
-            DisplayServer("de_fra", "DE", "Germany", "Frankfurt · Relay", "Germany", 48),
-            DisplayServer("nl_ams", "NL", "Netherlands", "Amsterdam · Relay", "Netherlands", 54),
-            DisplayServer("gb_lon", "GB", "United Kingdom", "London · Relay", "United Kingdom", 62),
-            DisplayServer("fr_par", "FR", "France", "Paris · Relay", "France", 58),
-            DisplayServer("ie_dub", "IE", "Ireland", "Dublin · Relay", "Ireland", 65),
-            DisplayServer("us_nyc", "US", "United States", "New York · Relay", "United States", 112),
-            DisplayServer("ca_tor", "CA", "Canada", "Toronto · Relay", "Canada", 125),
-            DisplayServer("jp_tyo", "JP", "Japan", "Tokyo · Relay", "Japan", 168),
-            DisplayServer("sg_sin", "SG", "Singapore", "Singapore · Relay", "Singapore", 142),
-        )
-    }
-
     // Read real servers from current engine if supported
     val coreServers = remember(state.coreId) {
         if (ServerChoice.supports(state.coreId)) {
@@ -145,9 +133,7 @@ fun ServersScreen(
         }
     }
 
-    val allServers = remember(coreServers, defaultServers) {
-        if (coreServers.isNotEmpty()) coreServers else defaultServers
-    }
+    val allServers = remember(coreServers) { coreServers }
 
     val activePinned = Prefs.server(state.coreId)
     val isConnected = state.connected
@@ -374,16 +360,54 @@ fun ServersScreen(
                 }
             }
 
-            items(filteredServers, key = { it.key }) { srv ->
-                val ping = serverPings[srv.key] ?: srv.pingMs
-                val isSelected = activePinned == srv.key
-                LocationServerCard(
-                    server = srv,
-                    pingMs = ping,
-                    isSelected = isSelected,
-                    isConnected = isConnected && isSelected,
-                    onSelect = { onSelectServer(srv.key, srv.title) },
-                )
+            if (filteredServers.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(ClxyColors.CardSurface)
+                            .border(1.dp, ClxyColors.GlassBorder, RoundedCornerShape(14.dp))
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.CloudQueue,
+                                contentDescription = null,
+                                tint = ClxyColors.Cyan,
+                                modifier = Modifier.size(36.dp),
+                            )
+                            Text(
+                                text = "No Account Servers Loaded",
+                                color = ClxyColors.TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = "Sign in to CLXY Cloud to load and route through your account's dedicated high-speed server list.",
+                                color = ClxyColors.TextMuted,
+                                fontSize = 11.5.sp,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(filteredServers, key = { it.key }) { srv ->
+                    val ping = serverPings[srv.key] ?: srv.pingMs
+                    val isSelected = activePinned == srv.key
+                    LocationServerCard(
+                        server = srv,
+                        pingMs = ping,
+                        isSelected = isSelected,
+                        isConnected = isConnected && isSelected,
+                        onSelect = { onSelectServer(srv.key, srv.title) },
+                    )
+                }
             }
         }
     }

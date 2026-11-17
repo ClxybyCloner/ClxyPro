@@ -516,39 +516,41 @@ fun ClxyBottomNavBar(
                     onClick = { onSelectTab(MainTab.HOME) },
                 )
 
-                // Tab 2: Servers / Route
-                BottomNavItem(
-                    selected = activeTab == MainTab.SERVERS,
-                    label = if (isQuantum) "Route" else "All Server",
-                    activeColor = activeTint,
-                    tag = "nav_servers_button",
-                    icon = { selected, tint ->
-                        Icon(
-                            imageVector = if (isQuantum) Icons.Rounded.Bolt else (if (selected) Icons.Filled.Public else Icons.Outlined.Public),
-                            contentDescription = if (isQuantum) "Route" else "All Server",
-                            tint = tint,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    onClick = { onSelectTab(MainTab.SERVERS) },
-                )
+                if (!isQuantum) {
+                    // Tab 2: Servers / Route
+                    BottomNavItem(
+                        selected = activeTab == MainTab.SERVERS,
+                        label = "Servers",
+                        activeColor = activeTint,
+                        tag = "nav_servers_button",
+                        icon = { selected, tint ->
+                            Icon(
+                                imageVector = if (selected) Icons.Filled.Public else Icons.Outlined.Public,
+                                contentDescription = "Servers",
+                                tint = tint,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        },
+                        onClick = { onSelectTab(MainTab.SERVERS) },
+                    )
 
-                // Tab 3: Profile / Settings
-                BottomNavItem(
-                    selected = activeTab == MainTab.PROFILE,
-                    label = "Profile",
-                    activeColor = activeTint,
-                    tag = "nav_profile_button",
-                    icon = { _, tint ->
-                        Icon(
-                            imageVector = Icons.Rounded.Tune,
-                            contentDescription = "Profile",
-                            tint = tint,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    onClick = { onSelectTab(MainTab.PROFILE) },
-                )
+                    // Tab 3: Profile / Settings
+                    BottomNavItem(
+                        selected = activeTab == MainTab.PROFILE,
+                        label = "Profile",
+                        activeColor = activeTint,
+                        tag = "nav_profile_button",
+                        icon = { _, tint ->
+                            Icon(
+                                imageVector = Icons.Rounded.Tune,
+                                contentDescription = "Profile",
+                                tint = tint,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        },
+                        onClick = { onSelectTab(MainTab.PROFILE) },
+                    )
+                }
             }
         }
     }
