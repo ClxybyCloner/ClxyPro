@@ -76,7 +76,6 @@ import androidx.compose.ui.unit.sp
 import com.clxypro.vpn.Texts
 import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.Prefs
-import com.clxypro.vpn.core.StatusText
 import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.vpn.Store
 import kotlinx.coroutines.delay
@@ -99,9 +98,7 @@ fun HomeScreen(
 
     val isConnected = state.connected
     val isConnecting = state.busy || (state.running && !state.connected && !state.disconnecting)
-    val hasFailure = state.statusCode == StatusText.ENDPOINT_NOT_FOUND ||
-        state.statusCode == StatusText.TUNNEL_FAILED ||
-        state.diagnosis.isNotEmpty()
+    val hasFailure = !state.running && (state.diagnosis.isNotEmpty() || state.statusCode < 0)
 
     val statusColor by animateColorAsState(
         targetValue = when {
