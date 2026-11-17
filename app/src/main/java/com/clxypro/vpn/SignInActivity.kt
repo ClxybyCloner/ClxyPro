@@ -160,7 +160,11 @@ private fun SignInScreen() {
                     password = password,
                     unblockCode = unblock.trim(),
                     onPrompt = { prompt = it },
-                    onCaptcha = { captcha = it },
+                    // The prompt box only renders when `prompt` is set, but
+                    // the CAPTCHA flow only fired onCaptcha — so the box
+                    // (image + input) never appeared and sign-in sat in
+                    // awaitAnswer() with no way to type the characters.
+                    onCaptcha = { captcha = it; prompt = LoginPrompt.Captcha },
                     onStatus = { line ->
                         status = if (line.contains("confirmation email", ignoreCase = true)) {
                             context.getString(R.string.sign_in_confirm)
@@ -521,7 +525,9 @@ private fun CaptchaImage(dataUrl: String) {
 }
 
 private fun decodeDataUrl(dataUrl: String): android.graphics.Bitmap? {
-    val payload = dataUrl.substringAfter("base64,", "")
+    // Normally a "data:image/...;base64,..." URL; fall back to raw base64
+    // so a bare payload still decodes instead of a dead-end box.
+    val payload = if (dataUrl.contains("base64,")) dataUrl.substringAfter("base64,", "") else dataUrl.trim()
     if (payload.isEmpty()) return null
     return runCatching {
         val bytes = Base64.decode(payload, Base64.DEFAULT)

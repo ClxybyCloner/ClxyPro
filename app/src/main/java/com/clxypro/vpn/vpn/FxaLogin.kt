@@ -526,6 +526,12 @@ class FxaLogin(
                         }
                         "captcha" -> {
                             val imgB64 = data.optString("image_b64", "")
+                            // Never prompt with an unreadable image: the
+                            // user would sit at a dead-end input box.
+                            if (!imgB64.startsWith("data:image/")) {
+                                Logs.add("sign-in", "Unrecognized CAPTCHA challenge data")
+                                return false
+                            }
                             onStatus("Security check: enter the characters below")
                             onCaptcha(imgB64)
                             val answer = awaitAnswer() ?: return false
