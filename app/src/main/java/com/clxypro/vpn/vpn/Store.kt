@@ -173,7 +173,7 @@ object Store {
     fun activeAccountQuotaUsage(context: Context): Pair<Float, String> {
         val raw = quota(context).orEmpty()
         if (raw.isBlank()) {
-            return 0.15f to "0.75 GB / 5.0 GB"
+            return 0f to "0.0 GB / 5.0 GB"
         }
         // Try parsing "X.X GB / 5.0 GB" or similar
         val parts = raw.split('/')
@@ -183,7 +183,7 @@ object Store {
             val fraction = (usedStr / totalStr).coerceIn(0f, 1f)
             return fraction to raw
         }
-        return 0.40f to "$raw / 5.0 GB"
+        return 0f to raw
     }
 
     /** Adopts a session cached by an older build as the first saved account. */

@@ -38,7 +38,6 @@ import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.service.ProxyService
 import com.clxypro.vpn.service.TunnelVpnService
-import com.clxypro.vpn.ui.AccountsScreen
 import com.clxypro.vpn.ui.ClxyBottomNavBar
 import com.clxypro.vpn.ui.ClxyCosmicBackground
 import com.clxypro.vpn.ui.HomeScreen
@@ -147,9 +146,8 @@ class MainActivity : ComponentActivity() {
                                             onToggle = { toggle { activeTab = MainTab.PROFILE } },
                                             onOpenSettings = { activeTab = MainTab.PROFILE },
                                             onOpenServers = { activeTab = MainTab.SERVERS },
-                                            onOpenAccounts = { activeTab = MainTab.ACCOUNTS },
                                             onOpenSignIn = {
-                                                webSignIn.launch(Intent(this@MainActivity, WebSignInActivity::class.java))
+                                                webSignIn.launch(Intent(this@MainActivity, SignInActivity::class.java))
                                             },
                                             onOpenLogs = { logsOpen = true },
                                         )
@@ -163,12 +161,6 @@ class MainActivity : ComponentActivity() {
                                                 activeTab = MainTab.HOME
                                             },
                                             onCloseToHome = { activeTab = MainTab.HOME },
-                                        )
-                                        MainTab.ACCOUNTS -> AccountsScreen(
-                                            state = state,
-                                            onAddAccount = {
-                                                webSignIn.launch(Intent(this@MainActivity, WebSignInActivity::class.java))
-                                            },
                                         )
                                         MainTab.PROFILE -> ProfileScreen(
                                             state = state,
@@ -194,7 +186,7 @@ class MainActivity : ComponentActivity() {
         val coreId = state.coreId
         // The CLXY Hyper (Firefox) core rides on the user's account; launch in-app sign-in directly.
         if (coreId == "firefox" && !Store.hasSession(this)) {
-            webSignIn.launch(Intent(this, WebSignInActivity::class.java))
+            webSignIn.launch(Intent(this, SignInActivity::class.java))
             return
         }
         askNotifications()

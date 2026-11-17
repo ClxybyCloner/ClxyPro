@@ -502,13 +502,13 @@ fun ClxyBottomNavBar(
                 // Tab 1: Home
                 BottomNavItem(
                     selected = activeTab == MainTab.HOME,
-                    label = "خانه",
+                    label = "Home",
                     activeColor = activeTint,
                     tag = "nav_home_button",
                     icon = { selected, tint ->
                         Icon(
                             imageVector = if (selected) Icons.Filled.Home else Icons.Outlined.Home,
-                            contentDescription = "خانه",
+                            contentDescription = "Home",
                             tint = tint,
                             modifier = Modifier.size(20.dp),
                         )
@@ -519,13 +519,13 @@ fun ClxyBottomNavBar(
                 // Tab 2: Servers / Route
                 BottomNavItem(
                     selected = activeTab == MainTab.SERVERS,
-                    label = if (isQuantum) "مسیر Anycast" else "سرورها",
+                    label = if (isQuantum) "Route" else "All Server",
                     activeColor = activeTint,
                     tag = "nav_servers_button",
                     icon = { selected, tint ->
                         Icon(
                             imageVector = if (isQuantum) Icons.Rounded.Bolt else (if (selected) Icons.Filled.Public else Icons.Outlined.Public),
-                            contentDescription = if (isQuantum) "مسیر" else "سرورها",
+                            contentDescription = if (isQuantum) "Route" else "All Server",
                             tint = tint,
                             modifier = Modifier.size(20.dp),
                         )
@@ -533,35 +533,16 @@ fun ClxyBottomNavBar(
                     onClick = { onSelectTab(MainTab.SERVERS) },
                 )
 
-                // Tab 3: Accounts (ONLY in Hyper mode!)
-                if (!isQuantum) {
-                    BottomNavItem(
-                        selected = activeTab == MainTab.ACCOUNTS,
-                        label = "اکانت‌ها",
-                        activeColor = activeTint,
-                        tag = "nav_accounts_button",
-                        icon = { selected, tint ->
-                            Icon(
-                                imageVector = if (selected) Icons.Filled.Person else Icons.Outlined.Person,
-                                contentDescription = "اکانت‌ها",
-                                tint = tint,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        },
-                        onClick = { onSelectTab(MainTab.ACCOUNTS) },
-                    )
-                }
-
-                // Tab 4 / 3: Settings
+                // Tab 3: Profile / Settings
                 BottomNavItem(
                     selected = activeTab == MainTab.PROFILE,
-                    label = if (isQuantum) "تنظیمات کوانتوم" else "تنظیمات",
+                    label = "Profile",
                     activeColor = activeTint,
                     tag = "nav_profile_button",
                     icon = { _, tint ->
                         Icon(
                             imageVector = Icons.Rounded.Tune,
-                            contentDescription = "تنظیمات",
+                            contentDescription = "Profile",
                             tint = tint,
                             modifier = Modifier.size(20.dp),
                         )

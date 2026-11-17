@@ -87,7 +87,6 @@ fun HomeScreen(
     onToggle: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenServers: () -> Unit,
-    onOpenAccounts: () -> Unit,
     onOpenSignIn: () -> Unit,
     onOpenLogs: () -> Unit,
     modifier: Modifier = Modifier,
