@@ -1,7 +1,9 @@
 ﻿package com.clxypro.vpn.ui
 
+import android.content.Context
 import android.net.TrafficStats
 import android.os.SystemClock
+import android.telephony.TelephonyManager
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -199,15 +201,29 @@ fun HomeScreen(
         }
     }
 
+    // Origin flag: the device's real country (mobile network → SIM →
+    // device locale). VPN-independent — no IP lookup — so it stays
+    // correct while connected. Was hardcoded "AUTO" (generic globe).
+    val originCode = remember {
+        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+        val iso = tm?.networkCountryIso?.takeIf { it.length == 2 }
+            ?: tm?.simCountryIso?.takeIf { it.length == 2 }
+            ?: Locale.getDefault().country.takeIf { it.length == 2 }
+            ?: ""
+        iso.uppercase(Locale.US).ifEmpty { "AUTO" }
+    }
+
     // Destination routing
     val pinned = Prefs.server("firefox")
     val pinnedLabel = Prefs.serverLabel("firefox")
-    val destCode = if (isQuantum) "CF" else {
-        if (state.exit.isNotEmpty()) state.exit.take(2).uppercase()
+    val destCode = if (isQuantum) "CLXY" else {
+        // Never take(2) of the exit NAME: "CatchAll Anycast / USA"
+        // became "CA" and drew the Canada flag for a USA server.
+        if (state.exit.isNotEmpty()) inferCountryCode(state.exit, "")
         else if (pinned.isNotBlank() && pinned != "fastest") inferCountryCode(pinnedLabel, pinned)
         else "REC"
     }
-    val destName = if (isQuantum) "Cloudflare Anycast Mesh" else {
+    val destName = if (isQuantum) "CLXY Anycast Mesh" else {
         if (state.exit.isNotEmpty()) state.exit
         else if (pinnedLabel.isNotBlank()) pinnedLabel
         else "Auto Route · Recommended"
@@ -456,7 +472,7 @@ fun HomeScreen(
 
             RouteTunnelBox(
                 connected = isConnected || isConnecting,
-                originCode = "AUTO",
+                originCode = originCode,
                 originName = "Your Device",
                 originIp = "Direct Local",
                 destCode = destCode,

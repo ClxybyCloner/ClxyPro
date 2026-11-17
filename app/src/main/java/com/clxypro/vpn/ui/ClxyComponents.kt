@@ -377,6 +377,37 @@ fun CircularCountryFlag(
                         drawRect(color = Color.White)
                         drawCircle(color = Color(0xFFBC002D), radius = w * 0.28f)
                     }
+                    "IR" -> {
+                        // Simplified: tricolor only (the emblem and takbir
+                        // border are invisible at flag size).
+                        drawRect(color = Color(0xFF239F40), topLeft = Offset.Zero, size = Size(w, h / 3f + 0.5f))
+                        drawRect(color = Color.White, topLeft = Offset(0f, h / 3f), size = Size(w, h / 3f + 0.5f))
+                        drawRect(color = Color(0xFFDA0000), topLeft = Offset(0f, 2f * h / 3f), size = Size(w, h / 3f + 0.5f))
+                    }
+                    "IE" -> {
+                        drawRect(color = Color(0xFF169B62), topLeft = Offset.Zero, size = Size(w / 3f + 0.5f, h))
+                        drawRect(color = Color.White, topLeft = Offset(w / 3f, 0f), size = Size(w / 3f + 0.5f, h))
+                        drawRect(color = Color(0xFFFF883E), topLeft = Offset(2f * w / 3f, 0f), size = Size(w / 3f + 0.5f, h))
+                    }
+                    "CH" -> {
+                        drawRect(color = Color(0xFFDA291C))
+                        drawRect(color = Color.White, topLeft = Offset(w * 0.40f, h * 0.17f), size = Size(w * 0.20f, h * 0.66f))
+                        drawRect(color = Color.White, topLeft = Offset(w * 0.17f, h * 0.40f), size = Size(w * 0.66f, h * 0.20f))
+                    }
+                    "SE" -> {
+                        drawRect(color = Color(0xFF006AA7))
+                        drawRect(color = Color(0xFFFECC02), topLeft = Offset(w * 0.28f, 0f), size = Size(w * 0.16f, h))
+                        drawRect(color = Color(0xFFFECC02), topLeft = Offset(0f, h * 0.42f), size = Size(w, h * 0.16f))
+                    }
+                    "FI" -> {
+                        drawRect(color = Color.White)
+                        drawRect(color = Color(0xFF002F6C), topLeft = Offset(w * 0.26f, 0f), size = Size(w * 0.18f, h))
+                        drawRect(color = Color(0xFF002F6C), topLeft = Offset(0f, h * 0.41f), size = Size(w, h * 0.18f))
+                    }
+                    "CLXY" -> {
+                        // Brand badge (Quantum/Aether destination), not a country.
+                        drawRect(brush = Brush.linearGradient(listOf(Color(0xFF00E5FF), Color(0xFF7C3AED), Color(0xFF9333EA))))
+                    }
                     else -> {
                         val h1 = (code.hashCode() and 0x7FFFFFFF) % 360
                         val c1 = Color.hsl(h1.toFloat(), 0.65f, 0.42f)
@@ -386,10 +417,10 @@ fun CircularCountryFlag(
                 }
             }
         }
-        val showText = code !in setOf("", "REC", "AUTO", "US", "DE", "FR", "GB", "NL", "CA", "JP")
+        val showText = code == "CLXY" || code !in setOf("", "REC", "AUTO", "US", "DE", "FR", "GB", "NL", "CA", "JP", "IR", "IE", "CH", "SE", "FI")
         if (showText) {
             Text(
-                text = code.take(2),
+                text = if (code == "CLXY") "CX" else code.take(2),
                 color = Color.White,
                 fontSize = (size.value * 0.34f).sp,
                 fontWeight = FontWeight.Bold,
