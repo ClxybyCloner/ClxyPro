@@ -38,6 +38,7 @@ import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.service.ProxyService
 import com.clxypro.vpn.service.TunnelVpnService
+import com.clxypro.vpn.ui.AccountsScreen
 import com.clxypro.vpn.ui.ClxyBottomNavBar
 import com.clxypro.vpn.ui.ClxyCosmicBackground
 import com.clxypro.vpn.ui.HomeScreen
