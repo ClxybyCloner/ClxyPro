@@ -33,7 +33,10 @@ object Traffic {
             }
             if (reply[1].toInt() != 0) return false
 
-            // A live exit keeps the connection open; a dead one drops it at once.
+            // A live exit keeps the connection open; a dead one drops it at
+            // once, within one round-trip, so 800 ms is plenty to tell them
+            // apart — and the reachability probes behind this catch a slow
+            // failure anyway. This wait used to be 1500 ms.
             socket.soTimeout = ALIVE_CHECK_MS
             try {
                 input.read()
@@ -50,5 +53,5 @@ object Traffic {
     )
 
     private const val HANDSHAKE_TIMEOUT_MS = 2_000
-    private const val ALIVE_CHECK_MS = 1_500
+    private const val ALIVE_CHECK_MS = 800
 }

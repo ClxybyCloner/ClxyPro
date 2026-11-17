@@ -4,6 +4,8 @@ import android.os.SystemClock
 import java.io.InputStream
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
@@ -39,16 +41,15 @@ object Reachability {
     private const val RETRY_PAUSE_MS = 1_500L
 
     /**
-     * A relay can answer once and drop the link seconds later, which is exactly
-     * how a tunnel looks "connected" while the browser gets nothing. The answer
-     * that counts is the one after the interface, its DNS and the app's own
-     * probes are already running, so both sites are asked a second time.
-     */
-    private const val SETTLE_MS = 3_000L
-
-    /**
      * Blocking. [proxy] is the core's local SOCKS5 address; [cancelled] is polled
      * between requests so turning the tunnel off does not wait out the budget.
+     *
+     * The two sites are probed in parallel: asked one after another they cost
+     * their latencies added up, and on a slow link that was ~5 s of the
+     * connect time. There used to be a second round after a 3 s settle pause,
+     * to catch a relay that answers once and drops seconds later — but that
+     * cost ~6 s on every connect, and the tunnel watchdog already fails a
+     * tunnel that dies right after connecting, so the second round is gone.
      */
     fun verify(proxy: String, cancelled: () -> Boolean = { false }): Outcome {
         val port = proxy.substringAfterLast(':').toIntOrNull()
@@ -59,32 +60,41 @@ object Reachability {
             return Outcome(true, "no local proxy to probe ($proxy)")
         }
         val deadline = SystemClock.elapsedRealtime() + BUDGET_MS
-        val failed = LinkedHashSet<String>()
-        for ((name, label) in TARGETS) {
-            var round = 0
-            var answered = false
-            while (round < ROUNDS && !answered) {
+        val pending = TARGETS.toMutableList()
+        val pool = Executors.newFixedThreadPool(TARGETS.size)
+        try {
+            repeat(ROUNDS) { round ->
+                if (pending.isEmpty()) return@repeat
                 if (cancelled()) return Outcome(false, "cancelled")
-                if (SystemClock.elapsedRealtime() >= deadline) break
-                if (probe(host, port, name)) {
-                    AppState.log("reachability: $label answered through the tunnel")
-                    answered = true
-                    break
+                if (SystemClock.elapsedRealtime() >= deadline) return@repeat
+                val futures = pending.map { (name, label) ->
+                    pool.submit<Boolean> { probe(host, port, name) } to label
                 }
-                round += 1
-                if (round < ROUNDS && SystemClock.elapsedRealtime() < deadline) {
+                val answered = mutableListOf<String>()
+                futures.forEach { (future, label) ->
+                    val remaining = deadline - SystemClock.elapsedRealtime()
+                    val ok = if (remaining <= 0) false else runCatching {
+                        future.get(remaining, TimeUnit.MILLISECONDS)
+                    }.getOrDefault(false)
+                    if (ok) {
+                        AppState.log("reachability: $label answered through the tunnel")
+                        answered += label
+                    }
+                }
+                pending.removeAll { (_, label) -> label in answered }
+                if (pending.isNotEmpty() && round < ROUNDS - 1 &&
+                    SystemClock.elapsedRealtime() < deadline
+                ) {
                     runCatching { Thread.sleep(RETRY_PAUSE_MS) }
                 }
             }
-            if (!answered) failed += label
+        } finally {
+            pool.shutdownNow()
         }
-        if (failed.isNotEmpty()) {
-            return Outcome(false, "no answer from ${failed.joinToString(", ")}")
+        if (pending.isNotEmpty()) {
+            return Outcome(false, "no answer from ${pending.joinToString(", ") { it.second }}")
         }
-        if (!pauseUnlessCancelled(cancelled, SETTLE_MS)) return Outcome(false, "cancelled")
-        val dropped = TARGETS.filter { !probe(host, port, it.first) }.map { it.second }
-        if (dropped.isEmpty()) return Outcome(true, "youtube and facebook answered")
-        return Outcome(false, "no answer from ${dropped.joinToString(", ")} once the link settled")
+        return Outcome(true, "youtube and facebook answered")
     }
 
     /**
@@ -164,15 +174,6 @@ object Reachability {
             }
         }
     }.getOrDefault(false)
-
-    private fun pauseUnlessCancelled(cancelled: () -> Boolean, millis: Long): Boolean {
-        val until = SystemClock.elapsedRealtime() + millis
-        while (SystemClock.elapsedRealtime() < until) {
-            if (cancelled()) return false
-            runCatching { Thread.sleep(100) }
-        }
-        return !cancelled()
-    }
 
     private fun readFully(input: InputStream, buffer: ByteArray): Boolean {
         var read = 0
