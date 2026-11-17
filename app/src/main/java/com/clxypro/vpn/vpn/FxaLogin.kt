@@ -5,6 +5,7 @@ import android.util.Base64
 import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -27,7 +28,12 @@ enum class LoginPrompt { Password, Totp, Captcha, EmailCode, UnblockCode }
  * 100% Native In-App Firefox Accounts (FxA) Client for CLXY Cloud.
  *
  * Implements:
- * 1. Fastly anti-bot challenge solver (PoW, PAT, CAPTCHA, ClientMetrics)
+ * 1. Fastly anti-bot challenge solver (PoW, PAT, CAPTCHA, ClientMetrics),
+ *    applied reactively like Arman's fxaDo: when the API answers HTTP 406
+ *    (empty body), the challenge is solved and the SAME request retried,
+ *    up to 5 solves. Solving once up-front is not enough — the login POST
+ *    itself can still be challenged, and a bare 406 used to surface as an
+ *    empty error string ("rejected this sign-in" with no detail).
  * 2. PBKDF2 & HKDF password derivation (authPW)
  * 3. HAWK message authentication for session verification (email-2fa & TOTP)
  * 4. Account unblock challenge handling (errno 125)
@@ -73,14 +79,12 @@ class FxaLogin(
         val cleanPassword = password.trim()
         val sessionFile = File(workDir, SESSION)
 
-        onStatus("Solving security challenge…")
         Logs.add("sign-in", "Starting native FxA sign-in for $cleanEmail")
 
+        // No up-front challenge solve: like Arman, the challenge is solved
+        // only when the API actually answers HTTP 406, and the request is
+        // then retried with the fresh cookie (see fxaRequest).
         val cookies = LinkedHashMap<String, String>()
-        val fastlySolved = solveFastlyChallenge(cookies, onCaptcha, onStatus)
-        if (!fastlySolved && !cancelled) {
-            Logs.add("sign-in", "Warning: Fastly challenge not cleared; proceeding with direct API")
-        }
 
         if (cancelled) return "Sign-in cancelled"
 
@@ -93,13 +97,13 @@ class FxaLogin(
         }
 
         onStatus("Connecting to CLXY Cloud…")
-        val loginResult = attemptLogin(cleanEmail, authPw, unblockCode, cookies)
+        val loginResult = loginWithRetries(cleanEmail, cleanPassword, authPw, unblockCode, cookies, onCaptcha, onStatus)
         if (cancelled) return "Sign-in cancelled"
 
         if (loginResult.isBlocked) {
             // Errno 125: Request blocked, unblock code required
             onStatus("CLXY Cloud security authorization required")
-            sendUnblockCode(cleanEmail, cookies)
+            sendUnblockCode(cleanEmail, cookies, onCaptcha, onStatus)
             onPrompt(LoginPrompt.UnblockCode)
             val code = awaitAnswer() ?: return "Sign-in cancelled"
             if (code.isBlank()) return "Authorization code is required"
@@ -131,7 +135,7 @@ class FxaLogin(
                 if (code.isBlank()) return "Verification code is required"
 
                 onStatus("Verifying code…")
-                val verifyErr = verifySession(sessionToken, code, isTotp = false, cookies = cookies)
+                val verifyErr = verifySession(sessionToken, code, isTotp = false, cookies = cookies, onCaptcha = onCaptcha, onStatus = onStatus)
                 if (verifyErr != null) {
                     Logs.add("sign-in", "Email verification failed: $verifyErr")
                     return verifyErr
@@ -146,7 +150,7 @@ class FxaLogin(
                 if (code.isBlank()) return "Authenticator code is required"
 
                 onStatus("Verifying authenticator code…")
-                val verifyErr = verifySession(sessionToken, code, isTotp = true, cookies = cookies)
+                val verifyErr = verifySession(sessionToken, code, isTotp = true, cookies = cookies, onCaptcha = onCaptcha, onStatus = onStatus)
                 if (verifyErr != null) {
                     Logs.add("sign-in", "TOTP verification failed: $verifyErr")
                     return verifyErr
@@ -155,7 +159,7 @@ class FxaLogin(
             }
             else -> {
                 // If unknown method but session exists, try status check
-                if (isSessionVerified(sessionToken)) {
+                if (isSessionVerified(sessionToken, cookies, onCaptcha, onStatus)) {
                     return finishSuccess(sessionFile, sessionToken, onStatus)
                 }
                 return finishSuccess(sessionFile, sessionToken, onStatus)
@@ -183,198 +187,280 @@ class FxaLogin(
         val isVerified: Boolean = false,
         val verificationMethod: String = "",
         val isBlocked: Boolean = false,
-        val error: String? = null
+        val error: String? = null,
+        val errno: Int = 0,
+        /** The account's own email spelling, carried by errno 120. */
+        val correctedEmail: String = ""
     )
+
+    private data class FxaCall(val status: Int, val body: String, val error: String?)
+
+    /**
+     * Arman's fxaDo, ported: sends an FxA API request and, when the edge
+     * answers HTTP 406 (Fastly's bot check — an EMPTY body, no FxA error
+     * payload), solves the challenge and retries the SAME request, up to
+     * 5 solves within a 90s budget. A bare 406 used to be treated as a
+     * login failure with an empty error string, which the UI could only
+     * show as the generic "rejected this sign-in" with no detail.
+     */
+    private fun fxaRequest(
+        method: String,
+        url: String,
+        payload: String,
+        hawkAuth: String?,
+        cookies: MutableMap<String, String>,
+        onCaptcha: (String) -> Unit,
+        onStatus: (String) -> Unit
+    ): FxaCall {
+        val deadline = SystemClock.elapsedRealtime() + CHALLENGE_BUDGET_MS
+        for (solved in 0..MAX_CHALLENGE_ATTEMPTS) {
+            if (cancelled) return FxaCall(0, "", "Sign-in cancelled")
+            val call = sendOnce(method, url, payload, hawkAuth, cookies)
+            if (call.error != null) return call
+            if (call.status != 406) return call
+            if (solved == MAX_CHALLENGE_ATTEMPTS) {
+                Logs.add("sign-in", "Fastly still answers HTTP 406 after $solved solved challenges")
+                return FxaCall(406, "", "HTTP 406: CLXY Cloud's security check refused this sign-in after $solved challenge solves")
+            }
+            if (SystemClock.elapsedRealtime() > deadline) {
+                return FxaCall(406, "", "HTTP 406: CLXY Cloud's security check timed out while solving its challenge")
+            }
+            Logs.add("sign-in", "Account server answered HTTP 406 (Fastly bot check); solving challenge (attempt ${solved + 1})")
+            onStatus("Solving security challenge…")
+            if (!solveFastlyChallenge(cookies, onCaptcha, onStatus)) {
+                if (cancelled) return FxaCall(0, "", "Sign-in cancelled")
+                Logs.add("sign-in", "Fastly challenge failed (attempt ${solved + 1})")
+                return FxaCall(406, "", "HTTP 406: CLXY Cloud's security check refused this sign-in (challenge failed)")
+            }
+            Logs.add("sign-in", "Fastly challenge solved; retrying request")
+        }
+        return FxaCall(406, "", "HTTP 406: CLXY Cloud's security check refused this sign-in")
+    }
+
+    /** One FxA HTTP request, with Arman's Firefox headers. */
+    private fun sendOnce(
+        method: String,
+        url: String,
+        payload: String,
+        hawkAuth: String?,
+        cookies: Map<String, String>
+    ): FxaCall {
+        return try {
+            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                requestMethod = method
+                doOutput = payload.isNotEmpty()
+                connectTimeout = 15_000
+                readTimeout = 25_000
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "*/*")
+                // Arman: gzip as the sole encoding was associated with
+                // HTTP 406 on the HTTP/1.1 path in live A/B tests.
+                setRequestProperty("Accept-Encoding", "identity")
+                setRequestProperty("User-Agent", USER_AGENT)
+                if (hawkAuth != null) setRequestProperty("Authorization", hawkAuth)
+                val cookieHdr = formatCookies(cookies)
+                if (cookieHdr.isNotEmpty()) setRequestProperty("Cookie", cookieHdr)
+            }
+            if (payload.isNotEmpty()) {
+                conn.outputStream.use { it.write(payload.toByteArray(StandardCharsets.UTF_8)) }
+            }
+            val status = conn.responseCode
+            val body = if (status in 200..299) {
+                conn.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            }
+            conn.disconnect()
+            FxaCall(status, body, null)
+        } catch (t: Throwable) {
+            FxaCall(0, "", t.message ?: "Connection error")
+        }
+    }
+
+    /**
+     * Login with Arman's fallbacks: errno 107 (the server rejects
+     * verificationMethod) retries without it; errno 120 (incorrect email
+     * case) retries once in the account's own letter case, as Firefox does.
+     */
+    private fun loginWithRetries(
+        email: String,
+        password: String,
+        authPw: String,
+        unblockCode: String,
+        cookies: MutableMap<String, String>,
+        onCaptcha: (String) -> Unit,
+        onStatus: (String) -> Unit
+    ): LoginAttemptResult {
+        var result = attemptLogin(email, "", authPw, "email-2fa", unblockCode, cookies, onCaptcha, onStatus)
+        if (result.errno == 107) {
+            Logs.add("sign-in", "Server rejected verificationMethod (errno 107); retrying without it")
+            result = attemptLogin(email, "", authPw, "", unblockCode, cookies, onCaptcha, onStatus)
+        }
+        if (result.errno == 120 && result.correctedEmail.isNotEmpty() && result.correctedEmail != email) {
+            Logs.add("sign-in", "Retrying login in the account's own email case")
+            val fixedAuthPw = try {
+                deriveAuthPW(result.correctedEmail, password)
+            } catch (t: Throwable) {
+                return LoginAttemptResult(error = "Failed to derive credentials: ${t.message}")
+            }
+            result = attemptLogin(result.correctedEmail, email, fixedAuthPw, "email-2fa", unblockCode, cookies, onCaptcha, onStatus)
+        }
+        return result
+    }
 
     private fun attemptLogin(
         email: String,
+        originalEmail: String,
         authPw: String,
+        verificationMethod: String,
         unblockCode: String,
-        cookies: Map<String, String>
+        cookies: MutableMap<String, String>,
+        onCaptcha: (String) -> Unit,
+        onStatus: (String) -> Unit
     ): LoginAttemptResult {
         val target = "$FXA_AUTH_SERVER/account/login"
         val payload = JSONObject().apply {
             put("email", email)
             put("authPW", authPw)
-            put("verificationMethod", "email-2fa")
+            if (originalEmail.isNotEmpty()) put("originalLoginEmail", originalEmail)
+            if (verificationMethod.isNotEmpty()) put("verificationMethod", verificationMethod)
             if (unblockCode.isNotBlank()) {
                 put("unblockCode", unblockCode.trim().uppercase())
             }
         }.toString()
 
-        return try {
-            val conn = (URL(target).openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                doOutput = true
-                connectTimeout = 15_000
-                readTimeout = 25_000
-                setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("Accept", "application/json")
-                setRequestProperty("User-Agent", USER_AGENT)
-                val cookieHdr = formatCookies(cookies)
-                if (cookieHdr.isNotEmpty()) {
-                    setRequestProperty("Cookie", cookieHdr)
-                }
-            }
-
-            conn.outputStream.use { it.write(payload.toByteArray(StandardCharsets.UTF_8)) }
-            val status = conn.responseCode
-            val responseText = if (status in 200..299) {
-                conn.inputStream.bufferedReader().use { it.readText() }
-            } else {
-                conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            }
-
-            if (status == 200) {
-                val obj = JSONObject(responseText)
-                val token = obj.optString("sessionToken", "")
-                val verified = obj.optBoolean("verified", false) && obj.optBoolean("sessionVerified", false)
-                val method = obj.optString("verificationMethod", "email-2fa")
-                LoginAttemptResult(sessionToken = token, isVerified = verified, verificationMethod = method)
-            } else {
-                val errObj = runCatching { JSONObject(responseText) }.getOrNull()
-                val errno = errObj?.optInt("errno", 0) ?: 0
-                val msg = errObj?.optString("message", "HTTP $status error").orEmpty()
-                if (errno == 125) {
-                    LoginAttemptResult(isBlocked = true)
-                } else {
-                    LoginAttemptResult(error = msg)
-                }
-            }
-        } catch (t: Throwable) {
-            LoginAttemptResult(error = t.message ?: "Connection error during login")
+        val call = fxaRequest("POST", target, payload, hawkAuth = null, cookies, onCaptcha, onStatus)
+        if (call.error != null) return LoginAttemptResult(error = call.error)
+        if (call.status == 200) {
+            val obj = runCatching { JSONObject(call.body) }.getOrNull()
+                ?: return LoginAttemptResult(error = "Invalid response from CLXY Cloud (HTTP 200)")
+            val token = obj.optString("sessionToken", "")
+            // The login response carries only "verified" — there is no
+            // "sessionVerified" field here (that lives on
+            // /recovery_email/status). Requiring both made isVerified
+            // always false, so even verified accounts were asked for a
+            // code. Arman branches on Verified alone.
+            val verified = obj.optBoolean("verified", false)
+            val method = obj.optString("verificationMethod", "email-2fa")
+            return LoginAttemptResult(sessionToken = token, isVerified = verified, verificationMethod = method)
         }
+        val errObj = runCatching { JSONObject(call.body) }.getOrNull()
+        val errno = errObj?.optInt("errno", 0) ?: 0
+        val msg = errObj?.optString("message", "").orEmpty()
+        if (errno == 125) return LoginAttemptResult(isBlocked = true)
+        // Never return an empty error: the UI shows the raw text as the
+        // detail line, and errno lets it pick the right friendly message.
+        val detail = when {
+            msg.isNotEmpty() && errno != 0 -> "$msg (errno $errno, HTTP ${call.status})"
+            msg.isNotEmpty() -> "$msg (HTTP ${call.status})"
+            errno != 0 -> "CLXY Cloud error (errno $errno, HTTP ${call.status})"
+            else -> "CLXY Cloud error (HTTP ${call.status})"
+        }
+        val corrected = errObj?.optString("email", "").orEmpty()
+        return LoginAttemptResult(error = detail, errno = errno, correctedEmail = corrected)
     }
 
     private fun verifySession(
         sessionToken: String,
         code: String,
         isTotp: Boolean,
-        cookies: Map<String, String>
+        cookies: MutableMap<String, String>,
+        onCaptcha: (String) -> Unit,
+        onStatus: (String) -> Unit
     ): String? {
         val target = if (isTotp) "$FXA_AUTH_SERVER/session/verify/totp" else "$FXA_AUTH_SERVER/session/verify_code"
         val payload = JSONObject().put("code", code.trim()).toString()
 
-        return try {
-            val (hawkId, hawkKey) = deriveHawkCredentials(sessionToken, "sessionToken")
-            val authHeader = hawkHeader("POST", target, hawkId, hawkKey, payload)
-
-            val conn = (URL(target).openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                doOutput = true
-                connectTimeout = 15_000
-                readTimeout = 25_000
-                setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("Authorization", authHeader)
-                setRequestProperty("User-Agent", USER_AGENT)
-                val cookieHdr = formatCookies(cookies)
-                if (cookieHdr.isNotEmpty()) setRequestProperty("Cookie", cookieHdr)
-            }
-
-            conn.outputStream.use { it.write(payload.toByteArray(StandardCharsets.UTF_8)) }
-            val status = conn.responseCode
-            if (status == 200) null else {
-                val err = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                val msg = runCatching { JSONObject(err).optString("message") }.getOrNull()
-                msg ?: "Code verification failed (HTTP $status)"
-            }
+        val (hawkId, hawkKey) = try {
+            deriveHawkCredentials(sessionToken, "sessionToken")
         } catch (t: Throwable) {
-            t.message ?: "Verification failed"
+            return t.message ?: "Verification failed"
+        }
+        val authHeader = hawkHeader("POST", target, hawkId, hawkKey, payload)
+        val call = fxaRequest("POST", target, payload, authHeader, cookies, onCaptcha, onStatus)
+        if (call.error != null) return call.error
+        if (call.status == 200) return null
+        val errObj = runCatching { JSONObject(call.body) }.getOrNull()
+        val msg = errObj?.optString("message", "").orEmpty()
+        val errno = errObj?.optInt("errno", 0) ?: 0
+        return when {
+            msg.isNotEmpty() && errno != 0 -> "$msg (errno $errno, HTTP ${call.status})"
+            msg.isNotEmpty() -> "$msg (HTTP ${call.status})"
+            else -> "Code verification failed (HTTP ${call.status})"
         }
     }
 
-    private fun isSessionVerified(sessionToken: String): Boolean {
+    private fun isSessionVerified(
+        sessionToken: String,
+        cookies: MutableMap<String, String>,
+        onCaptcha: (String) -> Unit,
+        onStatus: (String) -> Unit
+    ): Boolean {
         val target = "$FXA_AUTH_SERVER/recovery_email/status"
         return try {
             val (hawkId, hawkKey) = deriveHawkCredentials(sessionToken, "sessionToken")
             val authHeader = hawkHeader("GET", target, hawkId, hawkKey, "")
-
-            val conn = (URL(target).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 10_000
-                readTimeout = 15_000
-                setRequestProperty("Authorization", authHeader)
-                setRequestProperty("User-Agent", USER_AGENT)
-                setRequestProperty("Accept", "application/json")
-            }
-            if (conn.responseCode == 200) {
-                val txt = conn.inputStream.bufferedReader().use { it.readText() }
-                val obj = JSONObject(txt)
-                obj.optBoolean("sessionVerified", false)
+            val call = fxaRequest("GET", target, "", authHeader, cookies, onCaptcha, onStatus)
+            if (call.error == null && call.status == 200) {
+                JSONObject(call.body).optBoolean("sessionVerified", false)
             } else false
         } catch (_: Throwable) {
             false
         }
     }
 
-    private fun sendUnblockCode(email: String, cookies: Map<String, String>) {
+    private fun sendUnblockCode(
+        email: String,
+        cookies: MutableMap<String, String>,
+        onCaptcha: (String) -> Unit,
+        onStatus: (String) -> Unit
+    ) {
         val target = "$FXA_AUTH_SERVER/account/login/send_unblock_code"
         val payload = JSONObject().put("email", email).toString()
-        runCatching {
-            val conn = (URL(target).openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                doOutput = true
-                connectTimeout = 10_000
-                readTimeout = 15_000
-                setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("User-Agent", USER_AGENT)
-                val cookieHdr = formatCookies(cookies)
-                if (cookieHdr.isNotEmpty()) setRequestProperty("Cookie", cookieHdr)
-            }
-            conn.outputStream.use { it.write(payload.toByteArray(StandardCharsets.UTF_8)) }
-            conn.responseCode
-        }
+        runCatching { fxaRequest("POST", target, payload, hawkAuth = null, cookies, onCaptcha, onStatus) }
     }
 
     /**
      * Solves the Fastly client challenge handshake and returns true if cleared.
+     * Tries the API host first (the host that actually rejected the request),
+     * then the site host — Arman's order. The API host usually serves no
+     * challenge page at all; the cookie the site host issues is scoped to
+     * firefox.com, so it clears the API host too.
      */
     private fun solveFastlyChallenge(
         cookies: MutableMap<String, String>,
         onCaptcha: (String) -> Unit,
         onStatus: (String) -> Unit
     ): Boolean {
+        for (base in listOf(FXA_API_HOST, FXA_SITE_URL.trimEnd('/'))) {
+            if (cancelled) return false
+            if (solveChallengeOnHost(base, cookies, onCaptcha, onStatus)) return true
+        }
+        return false
+    }
+
+    /** Runs the whole challenge flow against one host. False = no challenge page here, or failed. */
+    private fun solveChallengeOnHost(
+        base: String,
+        cookies: MutableMap<String, String>,
+        onCaptcha: (String) -> Unit,
+        onStatus: (String) -> Unit
+    ): Boolean {
         try {
-            val pageConn = (URL(FXA_SITE_URL).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 10_000
-                readTimeout = 15_000
-                setRequestProperty("User-Agent", USER_AGENT)
-                setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            }
-            extractCookies(pageConn, cookies)
-            val html = pageConn.inputStream.bufferedReader().use { it.readText() }
+            val pageUrl = "$base/"
+            val html = fetchText(pageUrl, cookies) ?: return false
+            if (!isChallengePage(html)) return false
 
             val prefixMatcher = Pattern.compile("""/_fs-ch-[A-Za-z0-9]+""").matcher(html)
-            if (!prefixMatcher.find()) return true // No challenge present
-            val prefix = prefixMatcher.group(0)
+            if (!prefixMatcher.find()) return false
+            val prefix = prefixMatcher.group(0) ?: return false
 
-            val scriptUrl = "$FXA_SITE_URL$prefix/script.js?reload=true"
-            val scriptConn = (URL(scriptUrl).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 10_000
-                readTimeout = 15_000
-                setRequestProperty("User-Agent", USER_AGENT)
-                val cookieHdr = formatCookies(cookies)
-                if (cookieHdr.isNotEmpty()) setRequestProperty("Cookie", cookieHdr)
-            }
-            extractCookies(scriptConn, cookies)
-            val scriptText = scriptConn.inputStream.bufferedReader().use { it.readText() }
+            val scriptUrl = "$base$prefix/script.js?reload=true"
+            val scriptText = fetchText(scriptUrl, cookies) ?: return false
 
-            val initMatcher = Pattern.compile("""\binit\s*\(\s*(\[.*?\])\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"""").matcher(scriptText)
-            var lastChallenges: JSONArray? = null
-            var lastToken: String? = null
-            while (initMatcher.find()) {
-                val cArray = runCatching { JSONArray(initMatcher.group(1)) }.getOrNull()
-                val tok = initMatcher.group(2)
-                if (cArray != null && tok != null) {
-                    lastChallenges = cArray
-                    lastToken = tok
-                }
-            }
-
-            var challenges = lastChallenges ?: return false
-            var token = lastToken ?: return false
+            val init = parseChallengeInit(scriptText, prefix) ?: return false
+            var challenges = init.first
+            var token = init.second
 
             for (round in 0 until 8) {
                 if (cancelled) return false
@@ -386,21 +472,24 @@ class FxaLogin(
 
                     when (ty) {
                         "pow" -> {
-                            val base = data.optString("base", "")
+                            val powBase = data.optString("base", "")
                             val targetHash = data.optString("hash", "")
-                            val ans = solvePow(base, targetHash) ?: return false
+                            val ans = solvePow(powBase, targetHash) ?: return false
                             answers.put(
                                 JSONObject()
                                     .put("ty", "pow")
-                                    .put("base", base)
+                                    .put("base", powBase)
                                     .put("answer", ans)
                                     .put("hmac", data.optString("hmac", ""))
                                     .put("expires", data.optString("expires", ""))
                             )
                         }
                         "pat" -> {
-                            // PAT challenge
-                            val patUrl = "$FXA_SITE_URL$prefix/pat?token=" + URLEncoder.encode(token, "UTF-8")
+                            // PAT challenge. A non-200 (401/400 when the
+                            // client cannot mint a PAT) posts back an empty
+                            // auth, which makes Fastly fall back to
+                            // solvable challenges — Arman's behavior.
+                            val patUrl = "$base$prefix/pat?token=" + URLEncoder.encode(token, "UTF-8")
                             var auth = ""
                             try {
                                 val patConn = (URL(patUrl).openConnection() as HttpURLConnection).apply {
@@ -410,7 +499,8 @@ class FxaLogin(
                                     readTimeout = 5_000
                                     setRequestProperty("User-Agent", USER_AGENT)
                                     setRequestProperty("Content-Type", "application/json")
-                                    setRequestProperty("Origin", FXA_SITE_URL.trimEnd('/'))
+                                    setRequestProperty("Accept", "text/plain")
+                                    setRequestProperty("Origin", base)
                                     val cookieHdr = formatCookies(cookies)
                                     if (cookieHdr.isNotEmpty()) setRequestProperty("Cookie", cookieHdr)
                                 }
@@ -419,6 +509,7 @@ class FxaLogin(
                                     val patText = patConn.inputStream.bufferedReader().use { it.readText() }
                                     auth = JSONObject(patText).optString("auth", "")
                                 }
+                                patConn.disconnect()
                             } catch (_: Throwable) {}
                             answers.put(JSONObject().put("ty", "pat").put("auth", auth))
                         }
@@ -440,11 +531,15 @@ class FxaLogin(
                             val answer = awaitAnswer() ?: return false
                             answers.put(JSONObject().put("ty", "captcha").put("answer", answer.trim()))
                         }
+                        else -> {
+                            Logs.add("sign-in", "Unsupported Fastly challenge type: $ty")
+                            return false
+                        }
                     }
                 }
 
                 // Post-back
-                val postBackUrl = "$FXA_SITE_URL$prefix/fst-post-back"
+                val postBackUrl = "$base$prefix/fst-post-back"
                 val pbPayload = JSONObject().put("token", token).put("data", answers).toString()
                 val pbConn = (URL(postBackUrl).openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
@@ -454,27 +549,106 @@ class FxaLogin(
                     setRequestProperty("User-Agent", USER_AGENT)
                     setRequestProperty("Content-Type", "application/json")
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("Origin", FXA_SITE_URL.trimEnd('/'))
+                    setRequestProperty("Origin", base)
                     val cookieHdr = formatCookies(cookies)
                     if (cookieHdr.isNotEmpty()) setRequestProperty("Cookie", cookieHdr)
                 }
                 pbConn.outputStream.use { it.write(pbPayload.toByteArray(StandardCharsets.UTF_8)) }
                 extractCookies(pbConn, cookies)
+                if (pbConn.responseCode != 200) {
+                    pbConn.disconnect()
+                    return false
+                }
 
                 val pbText = pbConn.inputStream.bufferedReader().use { it.readText() }
-                val pbResp = JSONObject(pbText)
+                pbConn.disconnect()
+                val pbResp = runCatching { JSONObject(pbText) }.getOrNull() ?: return false
                 if (pbResp.optString("status") == "success") {
+                    // Verify the challenge page clears before trusting the
+                    // cookies: a solved cookie can be rejected when the
+                    // exit IP rotated between solving and probing.
+                    val probe = fetchText(pageUrl, cookies)
+                    if (probe == null || isChallengePage(probe)) {
+                        Logs.add("sign-in", "Challenge cookie not accepted on probe; retrying on next host")
+                        return false
+                    }
                     Logs.add("sign-in", "Fastly challenge successfully resolved!")
                     return true
                 }
                 challenges = pbResp.optJSONArray("ch") ?: break
                 token = pbResp.optString("tok", "")
+                if (token.isEmpty()) break
             }
             return false
         } catch (t: Throwable) {
             Logs.add("sign-in", "Fastly challenge solver exception: ${t.message}")
             return false
         }
+    }
+
+    /** GETs a URL with the Firefox headers, collecting cookies. Null on any failure or non-200. */
+    private fun fetchText(url: String, cookies: MutableMap<String, String>): String? {
+        return try {
+            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 10_000
+                readTimeout = 15_000
+                setRequestProperty("User-Agent", USER_AGENT)
+                setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                val cookieHdr = formatCookies(cookies)
+                if (cookieHdr.isNotEmpty()) setRequestProperty("Cookie", cookieHdr)
+            }
+            extractCookies(conn, cookies)
+            if (conn.responseCode != 200) {
+                conn.disconnect()
+                return null
+            }
+            val text = conn.inputStream.bufferedReader().use { it.readText() }
+            conn.disconnect()
+            text
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    /** Arman's challenge detection: the asset prefix AND the page marker. */
+    private fun isChallengePage(html: String): Boolean =
+        html.contains("/_fs-ch-") && html.contains("Client Challenge")
+
+    /**
+     * Parses the init([...], "token", "prefix") call from the challenge
+     * script with a real JSON decoder (Arman's approach): the old regex
+     * could not match a call spanning lines or nesting brackets, and never
+     * checked the prefix. Prefers the last valid call.
+     */
+    private fun parseChallengeInit(scriptText: String, prefix: String): Pair<JSONArray, String>? {
+        var searchFrom = 0
+        var found: Pair<JSONArray, String>? = null
+        while (true) {
+            val idx = scriptText.indexOf("init", searchFrom)
+            if (idx < 0) break
+            searchFrom = idx + 4
+            // Word boundary: skip "initialize", "reinit", ...
+            if (idx > 0) {
+                val prev = scriptText[idx - 1]
+                if (prev.isLetterOrDigit() || prev == '_' || prev == '$') continue
+            }
+            var p = idx + 4
+            while (p < scriptText.length && scriptText[p].isWhitespace()) p++
+            if (p >= scriptText.length || scriptText[p] != '(') continue
+            val parsed = runCatching {
+                val tok = JSONTokener(scriptText.substring(p + 1))
+                val arr = tok.nextValue() as? JSONArray ?: return@runCatching null
+                if (tok.nextClean() != ',') return@runCatching null
+                val token = tok.nextValue() as? String ?: return@runCatching null
+                if (tok.nextClean() != ',') return@runCatching null
+                val scriptPrefix = tok.nextValue() as? String ?: return@runCatching null
+                if (scriptPrefix != prefix || token.isEmpty() || arr.length() == 0) return@runCatching null
+                arr to token
+            }.getOrNull() ?: continue
+            found = parsed
+        }
+        return found
     }
 
     private fun solvePow(base: String, targetHex: String): String? {
@@ -528,12 +702,16 @@ class FxaLogin(
 
     companion object {
         private const val FXA_AUTH_SERVER = "https://api.accounts.firefox.com/v1"
+        private const val FXA_API_HOST = "https://api.accounts.firefox.com"
         private const val FXA_SITE_URL = "https://accounts.firefox.com/"
         private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
         private const val SESSION = "session.txt"
         private const val TOKEN_LENGTH = 64
         private const val ANSWER_TIMEOUT_MS = 300_000L
         private const val POLL_MS = 200L
+        /** Arman's fxaDo bounds: max challenge solves per call, 90s budget. */
+        private const val MAX_CHALLENGE_ATTEMPTS = 5
+        private const val CHALLENGE_BUDGET_MS = 90_000L
 
         /** Fetches Remote Settings server-list and writes cache file. */
         fun fetchRemoteServers(workDir: File): List<Server> {
