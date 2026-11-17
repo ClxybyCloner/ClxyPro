@@ -189,7 +189,7 @@ object SstpScanner {
     fun scan(
         endpoints: List<SstpEndpoint>,
         stop: () -> Boolean,
-        log: (String) -> Unit
+        log: (String) -> Unit = {}
     ): List<SstpCandidate> {
         if (endpoints.isEmpty()) return emptyList()
         val deadline = SystemClock.elapsedRealtime() + SCAN_BUDGET_MS

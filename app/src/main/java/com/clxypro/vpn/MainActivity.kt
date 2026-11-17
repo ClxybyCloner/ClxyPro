@@ -155,7 +155,7 @@ class MainActivity : ComponentActivity() {
                                             onOpenTools = { toolsOpen = true },
                                             onOpenServers = { activeTab = MainTab.SERVERS },
                                             onOpenSignIn = {
-                                                webSignIn.launch(Intent(this, WebSignInActivity::class.java))
+                                                webSignIn.launch(Intent(this@MainActivity, WebSignInActivity::class.java))
                                             },
                                             onOpenLogs = { logsOpen = true },
                                         )
