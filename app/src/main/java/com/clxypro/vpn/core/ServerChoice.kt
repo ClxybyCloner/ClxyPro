@@ -58,6 +58,12 @@ object ServerChoice {
         coreId: String,
         stop: () -> Boolean,
         log: (String) -> Unit
+    ): List<ServerOption> {
+        when (coreId) {
+            "firefox" -> ServerList.fetch(Store.binary(context), Store.cacheFile(context), stop)
+        }
+        return options(context, coreId)
+    }
     /**
      * The refresh the picker runs: freshest list, then a reachability test of
      * every entry. Only servers that answered are kept, fastest first.
