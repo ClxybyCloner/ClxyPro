@@ -36,6 +36,67 @@ data class RadianceCandidate(
 object LanternServers {
     private const val MARKER = "RADIANCE_SERVERS_JSON "
     private const val CACHE_FILE = "lantern_servers.json"
+    private const val SUB_URL = "https://lantern.darkpx.workers.dev/sub"
+
+    fun fetchDarkPxSub(log: (String) -> Unit): List<RadianceServer> {
+        return runCatching {
+            val conn = java.net.URL(SUB_URL).openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 6_000
+            conn.readTimeout = 6_000
+            conn.setRequestProperty("User-Agent", "v2rayN/6.23")
+            val rawText = conn.inputStream.bufferedReader().use { it.readText() }
+            val servers = mutableListOf<RadianceServer>()
+            for (raw in rawText.lines()) {
+                val line = raw.trim()
+                if (line.isBlank()) continue
+                val hashIdx = line.indexOf('#')
+                val label = if (hashIdx >= 0) {
+                    runCatching { java.net.URLDecoder.decode(line.substring(hashIdx + 1), "UTF-8") }.getOrDefault("")
+                } else ""
+                val urlPart = if (hashIdx >= 0) line.substring(0, hashIdx) else line
+
+                if (line.startsWith("vless://")) {
+                    val at = urlPart.indexOf('@')
+                    if (at > 0) {
+                        val hostPort = urlPart.substring(at + 1).substringBefore('?').substringBefore('/')
+                        val country = if (label.contains("Germany") || hostPort.contains("54.247")) "DE" else "IE"
+                        servers.add(
+                            RadianceServer(
+                                tag = "vless-out-vless-vision-triangle-lightsail-dub-ir-free-$hostPort",
+                                address = hostPort,
+                                protocol = "vless",
+                                country = country,
+                                reachable = true
+                            )
+                        )
+                    }
+                } else if (line.startsWith("ss://")) {
+                    val at = urlPart.indexOf('@')
+                    if (at > 0) {
+                        val hostPort = urlPart.substring(at + 1)
+                        val country = if (label.contains("Germany")) "DE" else "GB"
+                        servers.add(
+                            RadianceServer(
+                                tag = "shadowsocks-out-ss2022-triangle-lightsail-$hostPort",
+                                address = hostPort,
+                                protocol = "shadowsocks",
+                                country = country,
+                                reachable = true
+                            )
+                        )
+                    }
+                }
+            }
+            if (servers.isNotEmpty()) {
+                log("engine lantern loaded ${servers.size} server(s) from DarkPX subscription")
+            }
+            servers
+        }.getOrElse {
+            log("engine lantern DarkPX sub fetch failed: ${it.message}")
+            emptyList()
+        }
+    }
+
     private const val LIST_TIMEOUT_MS = 150_000L
     private const val TCP_TIMEOUT_MS = 5_000
     private const val CONCURRENCY = 8
@@ -82,12 +143,16 @@ object LanternServers {
             if (SystemClock.elapsedRealtime() - startedAt > LIST_TIMEOUT_MS) break
         }
         EngineProc.stopOnce(child, log, "lantern list")
-        val list = parse(payload)
+        var list = parse(payload)
         if (list.isEmpty()) {
-            log("engine lantern produced no server list, using cache")
-            return readCache(workDir)
+            list = readCache(workDir)
         }
-        writeCache(workDir, payload!!)
+        if (list.isEmpty()) {
+            list = fetchDarkPxSub(log)
+        }
+        if (list.isNotEmpty() && !payload.isNullOrBlank()) {
+            writeCache(workDir, payload)
+        }
         log("engine lantern listed ${list.size} server(s)")
         return list
     }

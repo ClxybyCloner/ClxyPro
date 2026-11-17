@@ -105,6 +105,8 @@ fun HomeScreen(
     onToggle: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenTools: () -> Unit,
+    onOpenServers: () -> Unit = {},
+    onOpenSignIn: () -> Unit = onOpenSettings,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -146,6 +148,7 @@ fun HomeScreen(
                 ServerChip(
                     coreId = state.coreId,
                     enabled = !state.running && !state.busy && !state.disconnecting,
+                    onOpenAllServers = onOpenServers,
                 )
             }
 
@@ -166,6 +169,7 @@ fun HomeScreen(
                 destCode = if (state.exit.isNotBlank()) state.exit else "AUTO",
                 destName = if (state.exitPlace.isNotBlank()) state.exitPlace else Texts.coreName(state.coreId),
                 destIp = if (state.exitIp.isNotBlank()) state.exitIp else "Protected Tunnel",
+                onClick = onOpenServers,
             )
 
             Spacer(Modifier.height(12.dp))
@@ -175,7 +179,7 @@ fun HomeScreen(
 
             if (state.coreId == "firefox" && !Store.hasSession(context)) {
                 Spacer(Modifier.height(8.dp))
-                AccountChip(onClick = onOpenSettings)
+                AccountChip(onClick = onOpenSignIn)
             }
 
             state.update?.let { release ->
@@ -449,6 +453,7 @@ private fun RouteTunnelBox(
     destCode: String,
     destName: String,
     destIp: String,
+    onClick: () -> Unit = {},
 ) {
     val infinite = rememberInfiniteTransition(label = "routeFlow")
     val packetProgress by infinite.animateFloat(
@@ -468,6 +473,7 @@ private fun RouteTunnelBox(
                 if (connected) ClxyColors.CyanGlow.copy(alpha = 0.40f) else ClxyColors.GlassBorder,
                 RoundedCornerShape(16.dp),
             )
+            .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,

@@ -8,9 +8,22 @@ import android.os.Build
 import android.os.Bundle
 import android.view.View
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -25,9 +38,13 @@ import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.service.ProxyService
 import com.clxypro.vpn.service.TunnelVpnService
+import com.clxypro.vpn.ui.ClxyBottomNavBar
+import com.clxypro.vpn.ui.ClxyCosmicBackground
 import com.clxypro.vpn.ui.HomeScreen
 import com.clxypro.vpn.ui.ClxyTheme
-import com.clxypro.vpn.ui.SettingsSheet
+import com.clxypro.vpn.ui.MainTab
+import com.clxypro.vpn.ui.ProfileScreen
+import com.clxypro.vpn.ui.ServersScreen
 import com.clxypro.vpn.ui.ToolsScreen
 import com.clxypro.vpn.vpn.Store
 
@@ -45,6 +62,20 @@ class MainActivity : ComponentActivity() {
     }
 
     private val notifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    private val webSignIn = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val data = result.data
+        if (result.resultCode == RESULT_OK && data != null) {
+            val token = data.getStringExtra("token").orEmpty()
+            val email = data.getStringExtra("email").orEmpty().ifBlank { Store.email(this).orEmpty() }
+            if (token.length >= 64) {
+                Store.setEmail(this, email)
+                runCatching { Store.sessionFile(this).writeText(token) }
+                AppState.log("engine firefox sign-in confirmed for $email")
+                toggle { }
+            }
+        }
+    }
 
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(AppLocale.wrap(newBase))
@@ -68,7 +99,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             ClxyTheme {
                 var state by remember { mutableStateOf(AppState.state) }
-                var settingsOpen by remember { mutableStateOf(false) }
+                var activeTab by remember { mutableStateOf(MainTab.HOME) }
                 var toolsOpen by remember { mutableStateOf(false) }
 
                 DisposableEffect(Unit) {
@@ -76,33 +107,73 @@ class MainActivity : ComponentActivity() {
                     onDispose { stop() }
                 }
 
-                Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF06080E)) {
-                    if (toolsOpen) {
-                        ToolsScreen(onBack = { toolsOpen = false })
-                    } else {
-                        HomeScreen(
-                            state = state,
-                            onToggle = { toggle { settingsOpen = true } },
-                            onOpenSettings = { settingsOpen = true },
-                            onOpenTools = { toolsOpen = true }
-                        )
-                    }
+                if (toolsOpen) {
+                    BackHandler { toolsOpen = false }
+                } else if (activeTab != MainTab.HOME) {
+                    BackHandler { activeTab = MainTab.HOME }
                 }
 
-                if (settingsOpen) {
-                    SettingsSheet(
-                        state = state,
-                        onDismiss = { settingsOpen = false },
-                        onOpenTools = {
-                            settingsOpen = false
-                            toolsOpen = true
+                ClxyCosmicBackground {
+                    Scaffold(
+                        containerColor = Color.Transparent,
+                        contentWindowInsets = WindowInsets.statusBars,
+                        bottomBar = {
+                            if (!toolsOpen) {
+                                ClxyBottomNavBar(
+                                    activeTab = activeTab,
+                                    onSelectTab = { activeTab = it },
+                                )
+                            }
                         },
-                        onSignedIn = { },
-                        onSignedOut = {
-                            val currentState = AppState.state
-                            if (currentState.connected || currentState.running) stopSession()
+                    ) { innerPadding ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding),
+                        ) {
+                            if (toolsOpen) {
+                                ToolsScreen(onBack = { toolsOpen = false })
+                            } else {
+                                AnimatedContent(
+                                    targetState = activeTab,
+                                    transitionSpec = {
+                                        val dir = if (targetState.ordinal >= initialState.ordinal) 1 else -1
+                                        (fadeIn(tween(240)) + slideInHorizontally(tween(260)) { it / 12 * dir }) togetherWith
+                                            (fadeOut(tween(180)) + slideOutHorizontally(tween(220)) { -it / 12 * dir })
+                                    },
+                                    label = "tabTransition",
+                                ) { tab ->
+                                    when (tab) {
+                                        MainTab.HOME -> HomeScreen(
+                                            state = state,
+                                            onToggle = { toggle { activeTab = MainTab.PROFILE } },
+                                            onOpenSettings = { activeTab = MainTab.PROFILE },
+                                            onOpenTools = { toolsOpen = true },
+                                            onOpenServers = { activeTab = MainTab.SERVERS },
+                                            onOpenSignIn = {
+                                                webSignIn.launch(Intent(this, WebSignInActivity::class.java))
+                                            },
+                                        )
+                                        MainTab.SERVERS -> ServersScreen(
+                                            state = state,
+                                            onSelectServer = { key, label ->
+                                                Prefs.setServer(state.coreId, key, label)
+                                                if (!state.connected && !state.running && !state.busy) {
+                                                    toggle { activeTab = MainTab.PROFILE }
+                                                }
+                                                activeTab = MainTab.HOME
+                                            },
+                                            onCloseToHome = { activeTab = MainTab.HOME },
+                                        )
+                                        MainTab.PROFILE -> ProfileScreen(
+                                            state = state,
+                                            onNavigateToServers = { activeTab = MainTab.SERVERS },
+                                        )
+                                    }
+                                }
+                            }
                         }
-                    )
+                    }
                 }
             }
         }
@@ -116,9 +187,9 @@ class MainActivity : ComponentActivity() {
             return
         }
         val coreId = state.coreId
-        // The Firefox core rides on the user's account; the anonymous cores do not.
+        // The CLXY Hyper (Firefox) core rides on the user's account; launch in-app sign-in directly.
         if (coreId == "firefox" && !Store.hasSession(this)) {
-            openSettings()
+            webSignIn.launch(Intent(this, WebSignInActivity::class.java))
             return
         }
         askNotifications()

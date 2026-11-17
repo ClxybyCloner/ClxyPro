@@ -4,9 +4,13 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,21 +20,46 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -39,10 +68,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -431,3 +463,305 @@ fun ClxyToastBanner(
         }
     }
 }
+
+@Composable
+fun ClxyBottomNavBar(
+    activeTab: MainTab,
+    onSelectTab: (MainTab) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(ClxyColors.NavBarSurface)
+            .border(width = 0.5.dp, color = Color(0xFF1E293B))
+            .navigationBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BottomNavItem(
+            selected = activeTab == MainTab.HOME,
+            label = "Home",
+            tag = "nav_home_button",
+            icon = { selected ->
+                Icon(
+                    imageVector = if (selected) Icons.Filled.Home else Icons.Outlined.Home,
+                    contentDescription = "Home",
+                    modifier = Modifier.size(22.dp),
+                )
+            },
+            onClick = { onSelectTab(MainTab.HOME) },
+        )
+        BottomNavItem(
+            selected = activeTab == MainTab.SERVERS,
+            label = "All Server",
+            tag = "nav_servers_button",
+            icon = { selected ->
+                Icon(
+                    imageVector = if (selected) Icons.Filled.Public else Icons.Outlined.Public,
+                    contentDescription = "All Server",
+                    modifier = Modifier.size(22.dp),
+                )
+            },
+            onClick = { onSelectTab(MainTab.SERVERS) },
+        )
+        BottomNavItem(
+            selected = activeTab == MainTab.PROFILE,
+            label = "Profile",
+            tag = "nav_profile_button",
+            icon = { selected ->
+                Icon(
+                    imageVector = if (selected) Icons.Filled.Person else Icons.Outlined.Person,
+                    contentDescription = "Profile",
+                    modifier = Modifier.size(22.dp),
+                )
+            },
+            onClick = { onSelectTab(MainTab.PROFILE) },
+        )
+    }
+}
+
+@Composable
+private fun BottomNavItem(
+    selected: Boolean,
+    label: String,
+    tag: String,
+    icon: @Composable (Boolean) -> Unit,
+    onClick: () -> Unit,
+) {
+    val tint by animateColorAsState(
+        targetValue = if (selected) ClxyColors.CyanGlow else ClxyColors.TextDim,
+        animationSpec = tween(260),
+        label = "navTint",
+    )
+    val iconScale by animateFloatAsState(
+        targetValue = if (selected) 1.12f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "navScale",
+    )
+    val pillWidth by animateDpAsState(
+        targetValue = if (selected) 26.dp else 0.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "navPillWidth",
+    )
+
+    Column(
+        modifier = Modifier
+            .testTag(tag)
+            .defaultMinSize(minWidth = 72.dp, minHeight = 48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        if (pillWidth > 0.dp) {
+            Box(
+                modifier = Modifier
+                    .width(pillWidth)
+                    .height(2.5.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(ClxyColors.CyanGlow),
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+        }
+        Box(modifier = Modifier.scale(iconScale)) {
+            CompositionLocalProvider(LocalContentColor provides tint) {
+                icon(selected)
+            }
+        }
+        Spacer(modifier = Modifier.height(3.dp))
+        Text(
+            text = label,
+            color = tint,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+fun ProfileMenuCard(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    tag: String,
+    badgeText: String? = null,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .testTag(tag)
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 60.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(ClxyColors.CardSurface)
+            .border(1.dp, ClxyColors.GlassBorder, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(ClxyColors.BlueDeep.copy(alpha = 0.22f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = ClxyColors.CyanGlow, modifier = Modifier.size(19.dp))
+            }
+            Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(title, color = ClxyColors.TextPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+                    if (badgeText != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(ClxyColors.CyanGlow.copy(alpha = 0.18f))
+                                .padding(horizontal = 6.dp, vertical = 1.dp),
+                        ) {
+                            Text(badgeText, color = ClxyColors.CyanText, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(subtitle, color = ClxyColors.TextMuted, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            tint = ClxyColors.TextMuted,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+@Composable
+fun SheetHeader(title: String, onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(ClxyColors.ModalSurface)
+            .border(0.5.dp, ClxyColors.GlassBorder)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = title,
+            color = ClxyColors.TextPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        IconButton(onClick = onDismiss) {
+            Icon(Icons.Rounded.Close, contentDescription = "Close", tint = ClxyColors.TextPrimary)
+        }
+    }
+}
+
+@Composable
+fun SettingSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(ClxyColors.CardSurface)
+            .border(1.dp, ClxyColors.GlassBorder, RoundedCornerShape(12.dp))
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
+            Text(title, color = ClxyColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(subtitle, color = ClxyColors.TextMuted, fontSize = 11.sp)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = clxySwitchColors(),
+        )
+    }
+}
+
+@Composable
+fun ChoiceRow(
+    title: String,
+    options: List<Pair<String, String>>,
+    selected: String,
+    onSelect: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(title, color = ClxyColors.TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            options.forEach { (key, label) ->
+                val isSelected = selected == key
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isSelected) ClxyColors.BlueDeep.copy(alpha = 0.50f) else ClxyColors.CardSurface)
+                        .border(1.dp, if (isSelected) ClxyColors.CyanGlow else ClxyColors.GlassBorder, RoundedCornerShape(8.dp))
+                        .clickable { onSelect(key) }
+                        .padding(horizontal = 6.dp, vertical = 9.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        color = if (isSelected) Color.White else ClxyColors.TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun clxySwitchColors() = SwitchDefaults.colors(
+    checkedThumbColor = ClxyColors.BgTop,
+    checkedTrackColor = ClxyColors.CyanGlow,
+    uncheckedThumbColor = ClxyColors.TextMuted,
+    uncheckedTrackColor = ClxyColors.BarInactive,
+)
+
+@Composable
+fun clxyTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = ClxyColors.TextPrimary,
+    unfocusedTextColor = ClxyColors.TextPrimary,
+    focusedBorderColor = ClxyColors.CyanGlow,
+    unfocusedBorderColor = Color(0xFF334155),
+    focusedLabelColor = ClxyColors.CyanText,
+    unfocusedLabelColor = ClxyColors.TextMuted,
+    cursorColor = ClxyColors.CyanGlow,
+    focusedContainerColor = Color(0xAA070B19),
+    unfocusedContainerColor = Color(0x88070B19),
+)
+

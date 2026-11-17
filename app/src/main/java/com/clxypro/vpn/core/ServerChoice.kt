@@ -153,13 +153,61 @@ object ServerChoice {
     private fun firefoxOption(server: Server, latencyMs: Int = -1) =
         ServerOption(server.address, server.label, server.address, latencyMs = latencyMs)
 
-    private fun lanternOption(server: RadianceServer, latencyMs: Int = -1) = ServerOption(
-        server.tag,
-        lanternLabel(server),
-        "${server.protocol} · ${server.tag}",
-        server.reachable,
-        latencyMs
-    )
+    private fun lanternOption(server: RadianceServer, latencyMs: Int = -1): ServerOption {
+        val (title, detail) = formatLanternServer(server.tag, server.country, server.protocol)
+        return ServerOption(
+            server.tag,
+            title,
+            detail,
+            server.reachable,
+            latencyMs
+        )
+    }
+
+    private fun formatLanternServer(tag: String, country: String, protocol: String): Pair<String, String> {
+        val lower = tag.lowercase()
+        val city = when {
+            lower.contains("-fra-") || lower.contains("frankfurt") -> "Frankfurt"
+            lower.contains("-lon-") || lower.contains("london") -> "London"
+            lower.contains("-dub-") || lower.contains("dublin") -> "Dublin"
+            lower.contains("-par-") || lower.contains("paris") -> "Paris"
+            lower.contains("-ams-") || lower.contains("amsterdam") -> "Amsterdam"
+            lower.contains("-arn-") || lower.contains("stockholm") -> "Stockholm"
+            lower.contains("-hel-") || lower.contains("helsinki") -> "Helsinki"
+            lower.contains("-mil-") || lower.contains("milan") -> "Milan"
+            lower.contains("-mad-") || lower.contains("madrid") -> "Madrid"
+            lower.contains("-zrh-") || lower.contains("zurich") -> "Zurich"
+            lower.contains("-vie-") || lower.contains("vienna") -> "Vienna"
+            lower.contains("-prg-") || lower.contains("prague") -> "Prague"
+            lower.contains("-sin-") || lower.contains("singapore") -> "Singapore"
+            lower.contains("-nrt-") || lower.contains("tokyo") -> "Tokyo"
+            else -> ""
+        }
+        val countryName = when (country.uppercase()) {
+            "DE" -> "Germany"
+            "GB", "UK" -> "United Kingdom"
+            "IE" -> "Ireland"
+            "FR" -> "France"
+            "NL" -> "Netherlands"
+            "SE" -> "Sweden"
+            "FI" -> "Finland"
+            "US" -> "United States"
+            "JP" -> "Japan"
+            "SG" -> "Singapore"
+            else -> if (country.isNotBlank()) country else "Global Relay"
+        }
+        val protoName = when {
+            lower.contains("vless") -> "VLESS Vision"
+            lower.contains("ss2022") || lower.contains("shadowsocks") -> "Shadowsocks"
+            lower.contains("hysteria") || lower.contains("hy2") -> "Hysteria 2"
+            protocol.isNotBlank() -> protocol.replaceFirstChar { it.uppercase() }
+            else -> "CLXY Relay"
+        }
+        val title = if (city.isNotBlank()) "$countryName · $city" else countryName
+        val shortId = if (tag.length > 8) tag.takeLast(7) else tag
+        val detail = "$protoName · #$shortId"
+        return title to detail
+    }
 
     private fun sstpOption(endpoint: SstpEndpoint, country: String, latencyMs: Int = -1) = ServerOption(
         endpoint.toString(),
@@ -169,8 +217,8 @@ object ServerChoice {
     )
 
     private fun lanternLabel(server: RadianceServer): String {
-        val country = server.country.ifBlank { server.tag }
-        return if (server.protocol.isBlank()) country else "$country · ${server.protocol}"
+        val (title, _) = formatLanternServer(server.tag, server.country, server.protocol)
+        return title
     }
 
     private fun openRungOption(relay: OpenRungRelay, latencyMs: Int = -1) = ServerOption(

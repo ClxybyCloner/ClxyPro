@@ -163,6 +163,38 @@ object Prefs {
             .apply()
     }
 
+    var dnsProvider: String
+        get() = prefs().getString("dns_provider", "cloudflare").orEmpty()
+        set(value) { prefs().edit().putString("dns_provider", value).apply() }
+
+    var customDns: String
+        get() = prefs().getString("custom_dns", "").orEmpty()
+        set(value) { prefs().edit().putString("custom_dns", value).apply() }
+
+    var mtu: Int
+        get() = prefs().getInt("vpn_mtu", 1500)
+        set(value) { prefs().edit().putInt("vpn_mtu", value).apply() }
+
+    var bypassLan: Boolean
+        get() = prefs().getBoolean("bypass_lan", true)
+        set(value) { prefs().edit().putBoolean("bypass_lan", value).apply() }
+
+    var bypassDomestic: Boolean
+        get() = prefs().getBoolean("bypass_domestic", false)
+        set(value) { prefs().edit().putBoolean("bypass_domestic", value).apply() }
+
+    var blockAds: Boolean
+        get() = prefs().getBoolean("block_ads", false)
+        set(value) { prefs().edit().putBoolean("block_ads", value).apply() }
+
+    var tlsFragmentMode: String
+        get() = prefs().getString("tls_fragment_mode", "off").orEmpty()
+        set(value) { prefs().edit().putString("tls_fragment_mode", value).apply() }
+
+    var showSpeedInNotification: Boolean
+        get() = prefs().getBoolean("show_speed_notification", true)
+        set(value) { prefs().edit().putBoolean("show_speed_notification", value).apply() }
+
     val socksAddress: String get() = "$LOOPBACK:$socksPort"
     val httpAddress: String get() = "$LOOPBACK:$httpPort"
 }

@@ -100,10 +100,15 @@ class LanternCore : VpnCore {
 
     /** The server that last carried traffic goes first, then the ranking. */
     private fun order(ranked: List<RadianceCandidate>): List<RadianceCandidate> {
+        // Prioritize VLESS protocol over Shadowsocks (much more resilient to DPI in Iran)
+        val sorted = ranked.sortedWith(
+            compareByDescending<RadianceCandidate> { it.server.protocol.contains("vless", ignoreCase = true) }
+                .thenBy { if (it.latencyMs > 0) it.latencyMs else 9999 }
+        )
         val last = prefs.lastServer()
-        if (last == null) return ranked
-        val hit = ranked.firstOrNull { it.server.tag == last } ?: return ranked
-        return listOf(hit) + ranked.filter { it.server.tag != last }
+        if (last == null) return sorted
+        val hit = sorted.firstOrNull { it.server.tag == last } ?: return sorted
+        return listOf(hit) + sorted.filter { it.server.tag != last }
     }
 
     private fun attemptFrom(from: Int, budgetMs: Long): String? {
@@ -350,8 +355,8 @@ class LanternCore : VpnCore {
         const val MAPPED_DNS = "9.9.9.9"
         const val TUNNEL_FILE = "tunnel.yml"
         const val SERVING_MARKER = "RADIANCE_READY"
-        const val PER_SERVER_MS = 150_000L
-        const val TOTAL_BUDGET_MS = 420_000L
+        const val PER_SERVER_MS = 12_000L
+        const val TOTAL_BUDGET_MS = 60_000L
     }
 }
 

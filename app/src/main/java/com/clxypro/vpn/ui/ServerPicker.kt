@@ -1,7 +1,11 @@
 ﻿package com.clxypro.vpn.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,16 +13,26 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -31,14 +45,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.clxypro.vpn.Texts
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.core.ServerChoice
 import com.clxypro.vpn.core.ServerOption
+import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.vpn.Logs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -46,49 +64,55 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * The manual server choice under the core picker: a full-width card in the
- * secondary accent, unlike the core pills, with an arrow that says it opens a
- * list. Auto keeps the scan-and-rank behaviour; a named server is dialled on
- * its own. Only the cores with a fixed server list offer it.
+ * The server choice card on HomeScreen: sleek cyber-neon card that opens
+ * the revamped server picker sheet.
  */
 @Composable
-fun ServerChip(coreId: String, enabled: Boolean) {
+fun ServerChip(
+    coreId: String,
+    enabled: Boolean,
+    onOpenAllServers: (() -> Unit)? = null,
+) {
     var open by remember { mutableStateOf(false) }
     var label by remember(coreId) { mutableStateOf(Prefs.serverLabel(coreId)) }
-    val accent = MaterialTheme.colorScheme.secondary
+
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = accent.copy(alpha = if (enabled) 0.14f else 0.07f),
-        border = BorderStroke(1.dp, accent.copy(alpha = if (enabled) 0.55f else 0.3f)),
+        color = ClxyColors.CardSurface.copy(alpha = if (enabled) 0.85f else 0.45f),
+        border = BorderStroke(1.dp, ClxyColors.GlassBorder.copy(alpha = if (enabled) 0.9f else 0.4f)),
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = enabled) { open = true }
+            .clickable(enabled = enabled) { open = true },
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = Texts.serverLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = ClxyColors.TextSecondary,
                 )
+                Spacer(Modifier.height(2.dp))
                 Text(
                     text = label.ifBlank { Texts.auto },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = accent.copy(alpha = if (enabled) 1f else 0.6f),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (enabled) ClxyColors.Cyan else ClxyColors.TextSecondary,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Icon(
                 imageVector = Icons.Rounded.KeyboardArrowDown,
                 contentDescription = null,
-                tint = accent.copy(alpha = if (enabled) 1f else 0.6f)
+                tint = if (enabled) ClxyColors.Cyan else ClxyColors.TextMuted,
             )
         }
     }
+
     if (open) {
         ServerPickerSheet(
             coreId = coreId,
@@ -97,17 +121,24 @@ fun ServerChip(coreId: String, enabled: Boolean) {
                 Prefs.setServer(coreId, key, picked)
                 label = picked
                 open = false
-            }
+            },
+            onOpenAllServers = onOpenAllServers?.let { action ->
+                {
+                    open = false
+                    action()
+                }
+            },
         )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ServerPickerSheet(
+fun ServerPickerSheet(
     coreId: String,
     onDismiss: () -> Unit,
-    onPick: (String, String) -> Unit
+    onPick: (String, String) -> Unit,
+    onOpenAllServers: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -129,15 +160,13 @@ private fun ServerPickerSheet(
     val stop = remember { AtomicBoolean(false) }
     DisposableEffect(Unit) { onDispose { stop.set(true) } }
 
-    // A pinned server the list no longer names stays visible and selectable;
-    // once a test has run and it did not survive, it is marked unreachable.
     val shown = if (selected.isNotBlank() && options.none { it.key == selected }) {
         listOf(
             ServerOption(
                 selected,
                 Prefs.serverLabel(coreId).ifBlank { selected },
                 "",
-                reachable = if (tested) false else null
+                reachable = if (tested) false else null,
             )
         ) + options
     } else {
@@ -147,81 +176,199 @@ private fun ServerPickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = Color(0xFF0C101A),
+        dragHandle = null,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp)
+                .padding(horizontal = 20.dp, vertical = 20.dp),
         ) {
-            Text(
-                text = Texts.serverTitle(Texts.coreName(coreId)),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
-            )
+            // Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    ClxyBrandHeader(logoSize = 24.dp, showLabel = false)
+                    Text(
+                        text = Texts.serverTitle(Texts.coreName(coreId)),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ClxyColors.TextPrimary,
+                    )
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Close",
+                        tint = ClxyColors.TextMuted,
+                    )
+                }
+            }
+
             Spacer(Modifier.height(6.dp))
             Text(
                 text = if (coreId == "sstp") Texts.serverHintSstp else Texts.serverHint,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                color = ClxyColors.TextSecondary,
             )
-            Spacer(Modifier.height(10.dp))
-            OutlinedButton(
-                enabled = !refreshing,
-                onClick = {
-                    refreshing = true
-                    status = Texts.serverRefreshing
-                    stop.set(false)
-                    scope.launch {
-                        val list = withContext(Dispatchers.IO) {
-                            ServerChoice.tested(context, coreId, { stop.get() }) {
-                                Logs.add(coreId, it)
+
+            Spacer(Modifier.height(14.dp))
+
+            // Action row: Download & Refresh Button + All Servers Link
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Download / Refresh Button
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (refreshing) ClxyColors.CardSurface else ClxyColors.Cyan.copy(alpha = 0.14f))
+                        .border(
+                            1.dp,
+                            if (refreshing) ClxyColors.GlassBorder else ClxyColors.Cyan.copy(alpha = 0.5f),
+                            RoundedCornerShape(12.dp),
+                        )
+                        .clickable(enabled = !refreshing) {
+                            refreshing = true
+                            status = Texts.serverRefreshing
+                            stop.set(false)
+                            scope.launch {
+                                val list = withContext(Dispatchers.IO) {
+                                    ServerChoice.tested(context, coreId, { stop.get() }) {
+                                        Logs.add(coreId, it)
+                                    }
+                                }
+                                refreshing = false
+                                tested = true
+                                options = list
+                                status = if (list.isEmpty()) {
+                                    Texts.serverNoneReachable
+                                } else {
+                                    Texts.serverTested(list.size)
+                                }
                             }
                         }
-                        refreshing = false
-                        tested = true
-                        options = list
-                        status = if (list.isEmpty()) {
-                            Texts.serverNoneReachable
-                        } else {
-                            Texts.serverTested(list.size)
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(Texts.serverRefresh) }
-            if (status.isNotBlank()) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = status,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.tertiary
-                )
-            }
-            Spacer(Modifier.height(6.dp))
-            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
-                item(key = "") {
-                    ServerRow(Texts.serverAuto, "", selected.isBlank()) { onPick("", "") }
-                }
-                if (shown.isEmpty()) {
-                    item(key = "empty") {
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    if (refreshing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = ClxyColors.Cyan,
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(Modifier.width(8.dp))
                         Text(
-                            text = Texts.serverEmpty,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 10.dp)
+                            text = Texts.serverRefreshing,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = ClxyColors.TextSecondary,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.Speed,
+                            contentDescription = null,
+                            tint = ClxyColors.Cyan,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = Texts.serverRefresh,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = ClxyColors.Cyan,
                         )
                     }
                 }
+
+                // If onOpenAllServers provided, show shortcut button
+                if (onOpenAllServers != null) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(ClxyColors.CardSurface)
+                            .border(1.dp, ClxyColors.GlassBorder, RoundedCornerShape(12.dp))
+                            .clickable(onClick = onOpenAllServers)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.OpenInNew,
+                            contentDescription = null,
+                            tint = ClxyColors.TextSecondary,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = "All Servers",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = ClxyColors.TextSecondary,
+                        )
+                    }
+                }
+            }
+
+            if (status.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = status,
+                    fontSize = 12.sp,
+                    color = if (status == Texts.serverNoneReachable) Color(0xFFFF5252) else ClxyColors.Green,
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Server items list
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // Auto Option Card
+                item(key = "") {
+                    AutoServerCard(
+                        selected = selected.isBlank(),
+                        onClick = { onPick("", "") },
+                    )
+                }
+
+                if (shown.isEmpty()) {
+                    item(key = "empty") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = Texts.serverEmpty,
+                                fontSize = 13.sp,
+                                color = ClxyColors.TextMuted,
+                            )
+                        }
+                    }
+                }
+
                 items(shown, key = { it.key }) { option ->
-                    ServerRow(
-                        label = option.label,
-                        detail = option.detail,
+                    ModernServerCard(
+                        option = option,
                         selected = option.key == selected,
-                        reachable = option.reachable,
-                        latencyMs = option.latencyMs
-                    ) { onPick(option.key, option.label) }
+                        onClick = { onPick(option.key, option.label) },
+                    )
                 }
             }
         }
@@ -229,51 +376,168 @@ private fun ServerPickerSheet(
 }
 
 @Composable
-private fun ServerRow(
-    label: String,
-    detail: String,
+private fun AutoServerCard(
     selected: Boolean,
-    reachable: Boolean? = null,
-    latencyMs: Int = -1,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
-    val accent = MaterialTheme.colorScheme.primary
-    val line = when {
-        latencyMs >= 0 && detail.isBlank() -> "$latencyMs ms"
-        latencyMs >= 0 -> "$detail · $latencyMs ms"
-        else -> detail
-    }
+    val borderColor = if (selected) ClxyColors.Cyan else ClxyColors.GlassBorder
+    val bgColor = if (selected) ClxyColors.Cyan.copy(alpha = 0.12f) else ClxyColors.CardSurface
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(bgColor)
+            .border(1.dp, borderColor, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (selected) accent else MaterialTheme.colorScheme.onSurface
-            )
-            if (line.isNotBlank()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(ClxyColors.Cyan.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Bolt,
+                    contentDescription = null,
+                    tint = ClxyColors.Cyan,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+
+            Column {
                 Text(
-                    text = line,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = Texts.serverAuto,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (selected) ClxyColors.Cyan else ClxyColors.TextPrimary,
+                )
+                Text(
+                    text = "Recommended · Automatic lowest latency",
+                    fontSize = 11.sp,
+                    color = ClxyColors.TextSecondary,
                 )
             }
         }
-        if (reachable == false) {
-            Text(
-                text = Texts.serverUnreachable,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(end = 8.dp)
-            )
-        }
+
         if (selected) {
-            Text(text = "✓", color = accent, style = MaterialTheme.typography.bodyLarge)
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(ClxyColors.Cyan),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = Color.Black,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModernServerCard(
+    option: ServerOption,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val flagCode = inferCountryCode(option.label, option.key)
+    val borderColor = if (selected) ClxyColors.Cyan else ClxyColors.GlassBorder
+    val bgColor = if (selected) ClxyColors.Cyan.copy(alpha = 0.12f) else ClxyColors.CardSurface
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(bgColor)
+            .border(1.dp, borderColor, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            CircularCountryFlag(countryCode = flagCode, size = 36.dp)
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = option.label,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (selected) ClxyColors.Cyan else ClxyColors.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (option.detail.isNotBlank()) {
+                    Text(
+                        text = option.detail,
+                        fontSize = 11.sp,
+                        color = ClxyColors.TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (option.reachable == false) {
+                Text(
+                    text = Texts.serverUnreachable,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFFFF5252),
+                )
+            } else if (option.latencyMs >= 0) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    SignalStrengthBars(pingMs = option.latencyMs)
+                    Text(
+                        text = "${option.latencyMs} ms",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = ClxyColors.Green,
+                    )
+                }
+            }
+
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(ClxyColors.Cyan),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = Color.Black,
+                        modifier = Modifier.size(15.dp),
+                    )
+                }
+            }
         }
     }
 }
