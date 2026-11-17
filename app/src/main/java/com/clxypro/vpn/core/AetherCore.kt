@@ -1,16 +1,19 @@
 ﻿package com.clxypro.vpn.core
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.SystemClock
 import com.clxypro.vpn.Texts
 import com.multicore.vpn.tunnel.Tun2Socks
 import java.io.File
-import java.util.concurrent.TimeUnit
+import java.net.InetSocketAddress
+import java.net.Socket
 
 /**
- * Engine for open or lightly filtered networks. A bundled tunnel process scans
- * for a reachable route on its own and serves a local SOCKS5 proxy; TUN traffic
- * is handed to it by the userspace tunnel bridge.
+ * Engine for open or lightly filtered networks (CLXY Quantum / Aether).
+ * Features intelligent working peer caching: once connected, the working relay endpoint
+ * is cached. On subsequent connects, if the cached endpoint is responsive to ping,
+ * it performs a lightning-fast reconnect (--quick-reconnect) directly without a full scan.
  */
 class AetherCore : VpnCore {
     override val id = "aether"
@@ -37,8 +40,14 @@ class AetherCore : VpnCore {
     @Volatile
     private var serving = false
 
+    @Volatile
+    private var discoveredPeer: String? = null
+
+    private lateinit var prefs: SharedPreferences
+
     override fun init(context: Context) {
         this.context = context.applicationContext
+        prefs = context.applicationContext.getSharedPreferences("aether_store", Context.MODE_PRIVATE)
         workDir.mkdirs()
         AppState.log("engine $id binary=${binary.exists()} abi=${android.os.Build.SUPPORTED_ABIS.firstOrNull()}")
     }
@@ -55,7 +64,30 @@ class AetherCore : VpnCore {
         workDir.mkdirs()
         stopping = false
         stopVpn()
+        discoveredPeer = null
 
+        // 1. FAST RECONNECT: Check if we have a previously cached working peer
+        val cached = prefs.getString(KEY_CACHED_PEER, null)
+        if (!cached.isNullOrBlank()) {
+            emit(1002, "testing cached relay", cached)
+            if (isPeerReachable(cached, PING_TIMEOUT_MS)) {
+                emit(1002, "fast reconnect", cached)
+                AppState.log("engine $id: cached relay $cached is reachable, initiating fast reconnect")
+                val fastArgs = commonArgs() + listOf("--quick-reconnect", "--peer", cached, "--masque", "--h2")
+                val fastError = runStage(executable, fastArgs, FAST_RECONNECT_MS)
+                if (stopping) return null
+                if (fastError == null) {
+                    emit(1004, "ready", "")
+                    AppState.log("engine $id: fast reconnect successful via cached relay $cached")
+                    return null
+                }
+                AppState.log("engine $id: fast reconnect failed ($fastError), proceeding to full scan")
+            } else {
+                AppState.log("engine $id: cached relay $cached did not answer ping, running scan")
+            }
+        }
+
+        // 2. HTTP/2 Scan Stage
         emit(1002, "http2 scan", "")
         val first = runStage(executable, http2Args(), HTTP2_STAGE_MS)
         if (stopping) return null
@@ -65,6 +97,7 @@ class AetherCore : VpnCore {
         }
         AppState.log("engine $id http2 stage: $first")
 
+        // 3. Automatic / HTTP/3 Scan Stage
         emit(1002, "automatic scan", "")
         val second = runStage(executable, automaticArgs(), AUTO_STAGE_MS)
         if (stopping) return null
@@ -123,6 +156,7 @@ class AetherCore : VpnCore {
     private fun runStage(executable: File, args: List<String>, timeoutMs: Long): String? {
         destroyProcess()
         serving = false
+        discoveredPeer = null
         val startedAt = SystemClock.elapsedRealtime()
         val child = try {
             ProcessBuilder(listOf(executable.absolutePath) + args)
@@ -140,13 +174,20 @@ class AetherCore : VpnCore {
                 val code = runCatching { child.exitValue() }.getOrNull()
                 return "process exited ($code) ${lastLine.take(160)}".trim()
             }
-            if (serving) return null
+            if (serving) {
+                // If a working peer was found, cache it for instant reconnect next time
+                discoveredPeer?.let { peer ->
+                    prefs.edit().putString(KEY_CACHED_PEER, peer).apply()
+                    AppState.log("engine $id: cached working relay $peer for fast future reconnects")
+                }
+                return null
+            }
             if (SystemClock.elapsedRealtime() - startedAt >= timeoutMs) {
                 destroyProcess()
                 return "scan timed out after ${timeoutMs / 1000}s"
             }
             try {
-                Thread.sleep(300L)
+                Thread.sleep(250L)
             } catch (_: InterruptedException) {
                 break
             }
@@ -160,8 +201,6 @@ class AetherCore : VpnCore {
             child,
             Thread {
                 runCatching {
-                    // Not `use`d: the stream is closed by EngineProc, once the
-                    // child is dead and can no longer write into it.
                     val reader = child.inputStream.bufferedReader()
                     while (true) {
                         val line = runCatching { reader.readLine() }.getOrNull() ?: break
@@ -169,6 +208,16 @@ class AetherCore : VpnCore {
                         if (lastLine.contains(SERVING_MARKER, ignoreCase = true)) {
                             serving = true
                         }
+
+                        // Inspect logs for working peer / endpoint
+                        val match = PEER_REGEX.find(lastLine)
+                        if (match != null) {
+                            val candidate = match.value
+                            if (!candidate.startsWith("127.0.0.1") && !candidate.startsWith("0.0.0.0")) {
+                                discoveredPeer = candidate
+                            }
+                        }
+
                         AppState.log("engine $id: $lastLine")
                     }
                 }
@@ -192,9 +241,20 @@ class AetherCore : VpnCore {
         listener?.invoke(code, message, data)
     }
 
+    private fun isPeerReachable(peer: String, timeoutMs: Int): Boolean {
+        return runCatching {
+            val parts = peer.split(':')
+            val host = parts[0]
+            val port = parts.getOrNull(1)?.toIntOrNull() ?: 443
+            Socket().use { sock ->
+                sock.connect(InetSocketAddress(host, port), timeoutMs)
+                true
+            }
+        }.getOrDefault(false)
+    }
+
     private fun http2Args(): List<String> = commonArgs() + listOf("--masque", "--h2")
 
-    /** Default carrier and scan, chosen automatically by the engine. */
     private fun automaticArgs(): List<String> = commonArgs() + listOf("--masque", "--h3")
 
     private fun commonArgs(): List<String> = listOf(
@@ -239,7 +299,11 @@ class AetherCore : VpnCore {
         const val IDENTITY_FILE = "identity.toml"
         const val TUNNEL_FILE = "tunnel.yml"
         const val SERVING_MARKER = "socks5 server listening"
+        const val KEY_CACHED_PEER = "cached_working_peer"
+        const val PING_TIMEOUT_MS = 1500
+        const val FAST_RECONNECT_MS = 12_000L
         const val HTTP2_STAGE_MS = 90_000L
         const val AUTO_STAGE_MS = 240_000L
+        val PEER_REGEX = Regex("""(?:\d{1,3}\.){3}\d{1,3}:\d{2,5}""")
     }
 }

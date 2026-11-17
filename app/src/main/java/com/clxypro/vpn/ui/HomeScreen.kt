@@ -48,6 +48,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.CircularProgressIndicator
@@ -107,6 +108,7 @@ fun HomeScreen(
     onOpenTools: () -> Unit,
     onOpenServers: () -> Unit = {},
     onOpenSignIn: () -> Unit = onOpenSettings,
+    onOpenLogs: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -136,7 +138,7 @@ fun HomeScreen(
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             // Header
-            TopBar(onOpenTools, onOpenSettings)
+            TopBar(onOpenTools, onOpenSettings, onOpenLogs)
 
             Spacer(Modifier.height(12.dp))
 
@@ -175,7 +177,7 @@ fun HomeScreen(
             Spacer(Modifier.height(12.dp))
 
             // Status block & Diagnostics info
-            StatusBlock(state, phase)
+            StatusBlock(state, phase, onOpenLogs)
 
             if (state.coreId == "firefox" && !Store.hasSession(context)) {
                 Spacer(Modifier.height(8.dp))
@@ -206,7 +208,11 @@ private fun phaseOf(state: AppState.State): Phase = when {
 }
 
 @Composable
-private fun TopBar(onOpenTools: () -> Unit, onOpenSettings: () -> Unit) {
+private fun TopBar(
+    onOpenTools: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenLogs: () -> Unit = {},
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -220,7 +226,22 @@ private fun TopBar(onOpenTools: () -> Unit, onOpenSettings: () -> Unit) {
             labelSizeSp = 18f,
         )
 
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            IconButton(
+                onClick = onOpenLogs,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(ClxyColors.CardSurface)
+                    .border(0.8.dp, ClxyColors.GlassBorder, CircleShape),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Terminal,
+                    contentDescription = "Live Logs",
+                    tint = ClxyColors.Cyan,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
             IconButton(
                 onClick = onOpenTools,
                 modifier = Modifier
@@ -552,7 +573,7 @@ private fun RouteTunnelBox(
 }
 
 @Composable
-private fun StatusBlock(state: AppState.State, phase: Phase) {
+private fun StatusBlock(state: AppState.State, phase: Phase, onOpenLogs: () -> Unit = {}) {
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     LaunchedEffect(state.connectedAt) {
         while (state.connectedAt > 0L) {
@@ -574,6 +595,7 @@ private fun StatusBlock(state: AppState.State, phase: Phase) {
             .clip(RoundedCornerShape(16.dp))
             .background(ClxyColors.CardSurface)
             .border(1.dp, ClxyColors.GlassBorder, RoundedCornerShape(16.dp))
+            .clickable(onClick = onOpenLogs)
             .padding(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

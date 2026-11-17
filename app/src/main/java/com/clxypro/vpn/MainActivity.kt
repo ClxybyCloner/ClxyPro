@@ -43,6 +43,7 @@ import com.clxypro.vpn.ui.ClxyCosmicBackground
 import com.clxypro.vpn.ui.HomeScreen
 import com.clxypro.vpn.ui.ClxyTheme
 import com.clxypro.vpn.ui.MainTab
+import com.clxypro.vpn.ui.DiagnosticsLogsDialog
 import com.clxypro.vpn.ui.ProfileScreen
 import com.clxypro.vpn.ui.ServersScreen
 import com.clxypro.vpn.ui.ToolsScreen
@@ -100,6 +101,7 @@ class MainActivity : ComponentActivity() {
             ClxyTheme {
                 var state by remember { mutableStateOf(AppState.state) }
                 var activeTab by remember { mutableStateOf(MainTab.HOME) }
+                var logsOpen by remember { mutableStateOf(false) }
                 var toolsOpen by remember { mutableStateOf(false) }
 
                 DisposableEffect(Unit) {
@@ -131,7 +133,9 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxSize()
                                 .padding(innerPadding),
                         ) {
-                            if (toolsOpen) {
+                            if (logsOpen) {
+                                DiagnosticsLogsDialog(state = state, onDismiss = { logsOpen = false })
+                            } else if (toolsOpen) {
                                 ToolsScreen(onBack = { toolsOpen = false })
                             } else {
                                 AnimatedContent(
@@ -153,6 +157,7 @@ class MainActivity : ComponentActivity() {
                                             onOpenSignIn = {
                                                 webSignIn.launch(Intent(this, WebSignInActivity::class.java))
                                             },
+                                            onOpenLogs = { logsOpen = true },
                                         )
                                         MainTab.SERVERS -> ServersScreen(
                                             state = state,

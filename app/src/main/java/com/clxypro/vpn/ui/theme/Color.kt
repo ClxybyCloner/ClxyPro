@@ -17,6 +17,9 @@ object ClxyColors {
 
     val GlassBorder = Color(0x2494A3B8)
     val CyanBorder = Color(0x5200E5FF)
+    val Cyan = Color(0xFF00E5FF)
+    val Green = Color(0xFF10D9A0)
+    val Purple = Color(0xFF9333EA)
     val CyanGlow = Color(0xFF00E5FF)
     val CyanBright = Color(0xFF00F0FF)
     val CyanText = Color(0xFF22D3EE)
