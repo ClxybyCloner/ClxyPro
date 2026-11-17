@@ -45,11 +45,15 @@ import com.clxypro.vpn.ui.ClxyTheme
 import com.clxypro.vpn.ui.MainTab
 import com.clxypro.vpn.ui.DiagnosticsLogsDialog
 import com.clxypro.vpn.ui.ProfileScreen
+import com.clxypro.vpn.ui.QuantumSerialDialog
 import com.clxypro.vpn.ui.ServersScreen
 import com.clxypro.vpn.vpn.Store
 
 class MainActivity : ComponentActivity() {
     private var pendingConnect = false
+
+    /** Quantum serial prompt; raised by toggle() on first Quantum connect. */
+    private val serialDialogOpen = mutableStateOf(false)
 
     /** The system VPN consent dialog; the tunnel only starts on RESULT_OK. */
     private val consent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -134,6 +138,15 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxSize()
                                 .padding(innerPadding),
                         ) {
+                            if (serialDialogOpen.value) {
+                                QuantumSerialDialog(
+                                    onDismiss = { serialDialogOpen.value = false },
+                                    onActivated = {
+                                        serialDialogOpen.value = false
+                                        toggle { activeTab = MainTab.PROFILE }
+                                    },
+                                )
+                            }
                             if (logsOpen) {
                                 DiagnosticsLogsDialog(state = state, onDismiss = { logsOpen = false })
                             } else {
@@ -190,6 +203,12 @@ class MainActivity : ComponentActivity() {
             return
         }
         val coreId = state.coreId
+        // Quantum (Aether) needs a serial on first connect, the way Hyper
+        // needs a sign-in. Asked once; the unlock is remembered.
+        if (coreId == "aether" && !Prefs.quantumUnlocked) {
+            serialDialogOpen.value = true
+            return
+        }
         // The CLXY Hyper (Firefox) core rides on the user's account; launch in-app sign-in directly.
         if (coreId == "firefox" && !Store.hasSession(this)) {
             webSignIn.launch(Intent(this, SignInActivity::class.java))

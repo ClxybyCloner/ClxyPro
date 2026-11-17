@@ -94,6 +94,13 @@ object Prefs {
             prefs().edit().putBoolean(KEY_SHARE_LAN, value).apply()
         }
 
+    /** Quantum (Aether) unlocked by a valid serial; asked once, on first connect. */
+    var quantumUnlocked: Boolean
+        get() = prefs().getBoolean("quantum_unlocked", false)
+        set(value) {
+            prefs().edit().putBoolean("quantum_unlocked", value).apply()
+        }
+
     var connectSound: Boolean
         get() = prefs().getBoolean(KEY_CONNECT_SOUND, true)
         set(value) {

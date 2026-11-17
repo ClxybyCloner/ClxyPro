@@ -14,6 +14,29 @@ import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
+/**
+ * Display name for an exit: only city + country, never the engine's internal
+ * words. The free list names its catch-all exit "CatchAll Anycast / USA"
+ * (countryName = "CatchAll Anycast", city = "USA") — that jargon must not
+ * reach the UI.
+ */
+fun displayServerName(countryCode: String, countryName: String, city: String): String {
+    val junk = listOf("catchall", "anycast", "relay", "masque", "fastly")
+    fun clean(s: String) =
+        s.trim().takeIf { it.isNotEmpty() && junk.none { j -> it.lowercase().contains(j) } }
+    val country = clean(countryName)
+        ?: countryCode.trim().takeIf { it.length == 2 }
+            ?.let { java.util.Locale("", it).displayCountry }
+            ?.takeIf { it.isNotEmpty() }
+    val place = clean(city)?.takeIf { it != country }
+    return when {
+        place != null && country != null -> "$place, $country"
+        country != null -> country
+        place != null -> place
+        else -> countryName.ifBlank { city.ifBlank { "Unknown Location" } }
+    }
+}
+
 /** One free-tier exit from the proxy's own server list. */
 data class Server(
     val country: String,
@@ -22,11 +45,7 @@ data class Server(
     val address: String
 ) {
     val label: String
-        get() = if (city.isBlank() || city.equals(countryName, ignoreCase = true)) {
-            countryName
-        } else {
-            "$countryName / $city"
-        }
+        get() = displayServerName(country, countryName, city)
 }
 
 /**

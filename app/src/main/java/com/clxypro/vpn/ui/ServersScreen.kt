@@ -95,8 +95,27 @@ fun inferCountryCode(label: String, key: String): String {
         l.contains("switzerland") || k.contains("ch") || l.contains("zurich") -> "CH"
         l.contains("sweden") || k.contains("se") || l.contains("stockholm") -> "SE"
         l.contains("finland") || k.contains("fi") || l.contains("helsinki") -> "FI"
+        l.contains("argentina") || l.contains("buenos aires") -> "AR"
+        l.contains("australia") || l.contains("sydney") -> "AU"
+        l.contains("south africa") || l.contains("johannesburg") || l.contains("cape town") -> "ZA"
         else -> "GLOBAL"
     }
+}
+
+/**
+ * Display-only fake VLESS URI for a server row. The real edge address
+ * (fastly-masque.net) must never be shown; the key the core dials is
+ * untouched — this string is only ever rendered as the row subtitle.
+ */
+fun fakeVlessUri(key: String, countryCode: String, name: String): String {
+    val md5 = java.security.MessageDigest.getInstance("MD5")
+        .digest(key.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
+    val uuid = "${md5.substring(0, 8)}-${md5.substring(8, 12)}-4${md5.substring(13, 16)}" +
+        "-8${md5.substring(17, 20)}-${md5.substring(20, 32)}"
+    val cc = countryCode.lowercase(Locale.US).takeIf { it.length == 2 } ?: "global"
+    val tag = name.replace(' ', '-')
+    return "vless://$uuid@$cc.clxy.pro:443?security=tls&encryption=none&type=tcp#$tag"
 }
 
 @Composable
@@ -118,12 +137,15 @@ fun ServersScreen(
         if (ServerChoice.supports(state.coreId)) {
             val opts = ServerChoice.options(context, state.coreId)
             opts.mapIndexed { idx, opt ->
-                val code = inferCountryCode(opt.label, opt.key)
+                // Infer from the (cleaned) label only: the key is the raw
+                // edge address, and substring-matching it misfires
+                // (e.g. a hostname containing "ch" would read as Switzerland).
+                val code = inferCountryCode(opt.label, "")
                 DisplayServer(
                     key = opt.key,
                     flagCode = code,
                     title = opt.label,
-                    city = opt.detail.ifBlank { "Relay Location" },
+                    city = fakeVlessUri(opt.key, code, opt.label),
                     countryName = opt.label,
                     pingMs = opt.latencyMs.takeIf { it > 0 } ?: -1,
                 )

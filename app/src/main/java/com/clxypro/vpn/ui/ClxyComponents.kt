@@ -404,6 +404,12 @@ fun CircularCountryFlag(
                         drawRect(color = Color(0xFF002F6C), topLeft = Offset(w * 0.26f, 0f), size = Size(w * 0.18f, h))
                         drawRect(color = Color(0xFF002F6C), topLeft = Offset(0f, h * 0.41f), size = Size(w, h * 0.18f))
                     }
+                    "AR" -> {
+                        drawRect(color = Color(0xFF74ACDF), topLeft = Offset.Zero, size = Size(w, h / 3f + 0.5f))
+                        drawRect(color = Color.White, topLeft = Offset(0f, h / 3f), size = Size(w, h / 3f + 0.5f))
+                        drawRect(color = Color(0xFF74ACDF), topLeft = Offset(0f, 2f * h / 3f), size = Size(w, h / 3f + 0.5f))
+                        drawCircle(color = Color(0xFFF6B40E), radius = w * 0.10f, center = Offset(w * 0.5f, h * 0.5f))
+                    }
                     "CLXY" -> {
                         // Brand badge (Quantum/Aether destination), not a country.
                         drawRect(brush = Brush.linearGradient(listOf(Color(0xFF00E5FF), Color(0xFF7C3AED), Color(0xFF9333EA))))
@@ -417,7 +423,7 @@ fun CircularCountryFlag(
                 }
             }
         }
-        val showText = code == "CLXY" || code !in setOf("", "REC", "AUTO", "US", "DE", "FR", "GB", "NL", "CA", "JP", "IR", "IE", "CH", "SE", "FI")
+        val showText = code == "CLXY" || code !in setOf("", "REC", "AUTO", "US", "DE", "FR", "GB", "NL", "CA", "JP", "IR", "IE", "CH", "SE", "FI", "AR")
         if (showText) {
             Text(
                 text = if (code == "CLXY") "CX" else code.take(2),
