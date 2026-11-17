@@ -626,54 +626,6 @@ private fun BottomNavItem(
         }
     }
 }
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium,
-        ),
-        label = "navScale",
-    )
-    val pillWidth by animateDpAsState(
-        targetValue = if (selected) 26.dp else 0.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMedium,
-        ),
-        label = "navPillWidth",
-    )
-
-    Column(
-        modifier = Modifier
-            .testTag(tag)
-            .defaultMinSize(minWidth = 72.dp, minHeight = 48.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        if (pillWidth > 0.dp) {
-            Box(
-                modifier = Modifier
-                    .width(pillWidth)
-                    .height(2.5.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(ClxyColors.CyanGlow),
-            )
-            Spacer(modifier = Modifier.height(3.dp))
-        }
-        Box(modifier = Modifier.scale(iconScale)) {
-            CompositionLocalProvider(LocalContentColor provides tint) {
-                icon(selected)
-            }
-        }
-        Spacer(modifier = Modifier.height(3.dp))
-        Text(
-            text = label,
-            color = tint,
-            fontSize = 11.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-        )
-    }
-}
 
 @Composable
 fun ProfileMenuCard(
