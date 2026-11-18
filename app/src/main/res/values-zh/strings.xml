@@ -117,7 +117,7 @@
     <string name="log_clear">清除</string>
 
     <string name="about_title">关于</string>
-    <string name="about_core">内核：ffvpn (Go) · 免费出口</string>
+    <string name="about_core">内核：clxy (Go) · 免费出口</string>
     <string name="about_version">版本 %1$s (%2$d)</string>
     <string name="free_tier">免费套餐</string>
 

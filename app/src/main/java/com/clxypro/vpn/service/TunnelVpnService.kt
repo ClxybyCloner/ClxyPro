@@ -25,6 +25,7 @@ import com.clxypro.vpn.core.RetryLadder
 import com.clxypro.vpn.core.StatusText
 import com.clxypro.vpn.core.VpnCore
 import com.clxypro.vpn.vpn.ExitProbe
+import com.clxypro.vpn.vpn.Logs
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -390,7 +391,9 @@ class TunnelVpnService : VpnService() {
                 connected = false,
                 disconnecting = true,
                 statusCode = code,
-                statusDetail = detail,
+                // The detail is the engine's own sentence (shown in the
+                // notification); it must not leak the Firefox name either.
+                statusDetail = Logs.sanitize(detail),
                 startedAt = 0L,
                 connectedAt = 0L,
                 connectMillis = 0L,

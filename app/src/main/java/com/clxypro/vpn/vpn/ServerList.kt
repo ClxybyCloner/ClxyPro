@@ -14,6 +14,9 @@ import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
+/** Words the engine uses for its own exits; none may reach the UI. */
+private val JUNK_WORDS = listOf("catchall", "anycast", "relay", "masque", "fastly")
+
 /**
  * Display name for an exit: only city + country, never the engine's internal
  * words. The free list names its catch-all exit "CatchAll Anycast / USA"
@@ -21,9 +24,8 @@ import java.util.concurrent.TimeUnit
  * reach the UI.
  */
 fun displayServerName(countryCode: String, countryName: String, city: String): String {
-    val junk = listOf("catchall", "anycast", "relay", "masque", "fastly")
     fun clean(s: String) =
-        s.trim().takeIf { it.isNotEmpty() && junk.none { j -> it.lowercase().contains(j) } }
+        s.trim().takeIf { it.isNotEmpty() && JUNK_WORDS.none { j -> it.lowercase().contains(j) } }
     val country = clean(countryName)
         ?: countryCode.trim().takeIf { it.length == 2 }
             ?.let { java.util.Locale("", it).displayCountry }
@@ -33,9 +35,25 @@ fun displayServerName(countryCode: String, countryName: String, city: String): S
         place != null && country != null -> "$place, $country"
         country != null -> country
         place != null -> place
-        else -> countryName.ifBlank { city.ifBlank { "Unknown Location" } }
+        // Never fall back to the raw string: a flat saved label such as
+        // "CatchAll Anycast / USA" would hand the jargon straight to the UI.
+        else -> cleanDisplayLabel(
+            listOf(countryName, city).filter { it.isNotBlank() }.joinToString(" / ")
+        ).ifBlank { "Unknown Location" }
     }
 }
+
+/**
+ * Cleans a flat saved label ("CatchAll Anycast / USA") the way
+ * [displayServerName] cleans structured fields: drops every '/'- or
+ * ','-separated segment carrying a junk word. Prefs saved before labels
+ * were cleaned still hold the raw names, so this runs at display time.
+ * Blank when nothing clean survives.
+ */
+fun cleanDisplayLabel(raw: String): String =
+    raw.split('/', ',').map { it.trim() }
+        .filter { it.isNotEmpty() && JUNK_WORDS.none { j -> it.lowercase().contains(j) } }
+        .joinToString(", ")
 
 /** One free-tier exit from the proxy's own server list. */
 data class Server(

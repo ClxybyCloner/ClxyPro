@@ -119,7 +119,7 @@
     <string name="log_clear">Clear</string>
 
     <string name="about_title">About</string>
-    <string name="about_core">Core: ffvpn (Go) · free exits</string>
+    <string name="about_core">Core: clxy (Go) · free exits</string>
     <string name="about_version">Version %1$s (%2$d)</string>
     <string name="free_tier">Free tier</string>
 

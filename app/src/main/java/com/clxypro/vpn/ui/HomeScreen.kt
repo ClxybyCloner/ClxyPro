@@ -83,6 +83,7 @@ import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.vpn.Store
+import com.clxypro.vpn.vpn.cleanDisplayLabel
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -217,7 +218,9 @@ fun HomeScreen(
 
     // Destination routing
     val pinned = Prefs.server("firefox")
-    val pinnedLabel = Prefs.serverLabel("firefox")
+    // The saved label may predate label cleaning ("CatchAll Anycast / USA");
+    // clean it here so the disconnected home never shows the raw name.
+    val pinnedLabel = cleanDisplayLabel(Prefs.serverLabel("firefox"))
     val destCode = if (isQuantum) "CLXY" else {
         // Never take(2) of the exit NAME: "CatchAll Anycast / USA"
         // became "CA" and drew the Canada flag for a USA server.
@@ -1065,6 +1068,18 @@ private fun HomeDataUsageCard(
     val usedLabel = if (quota.isNotBlank()) quota else if (hasSession) "Plan Active" else "No active account"
     val subtitle = if (email.isNotBlank()) email else if (hasSession) "CLXY Cloud Account" else "Sign in to track quota"
 
+    // Whole-device traffic since boot (TrafficStats totals), refreshed every
+    // second so the number next to the quota stays live: "unlimited / 12,4 GB".
+    var deviceTotal by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            deviceTotal = deviceTotalUsage()
+            delay(1000L)
+        }
+    }
+    val quotaLine =
+        if (quota.isNotBlank() && deviceTotal != null) "$usedLabel / $deviceTotal" else usedLabel
+
     Row(
         modifier = modifier
             .testTag("home_data_usage_card")
@@ -1086,10 +1101,12 @@ private fun HomeDataUsageCard(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = usedLabel,
+                text = quotaLine,
                 color = ClxyColors.TextPrimary,
                 fontSize = 13.5.sp,
                 fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = subtitle,
@@ -1134,4 +1151,25 @@ private fun HomeDataUsageCard(
             )
         }
     }
+}
+
+/** Whole-device Rx+Tx since boot, formatted; null when the device does not report totals. */
+private fun deviceTotalUsage(): String? {
+    val rx = TrafficStats.getTotalRxBytes()
+    val tx = TrafficStats.getTotalTxBytes()
+    if (rx < 0L || tx < 0L) return null
+    return formatBytes(rx + tx)
+}
+
+/** 1024-based, one decimal, comma separator like the speed readout. */
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 1024L) return "$bytes B"
+    val units = arrayOf("KB", "MB", "GB", "TB")
+    var value = bytes / 1024.0
+    var unit = 0
+    while (value >= 1024.0 && unit < units.size - 1) {
+        value /= 1024.0
+        unit++
+    }
+    return String.format(Locale.US, "%.1f %s", value, units[unit]).replace('.', ',')
 }

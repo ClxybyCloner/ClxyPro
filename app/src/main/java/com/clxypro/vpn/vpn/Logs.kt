@@ -27,11 +27,41 @@ object Logs {
 
     @Synchronized
     fun add(tag: String, message: String) {
-        val text = message.trim()
+        val text = sanitize(message.trim())
         if (text.isEmpty()) return
-        val line = LogLine(clock.format(Date()), tag, text.take(MAX_CHARS))
+        val line = LogLine(clock.format(Date()), sanitize(tag), text.take(MAX_CHARS))
         _lines.value = (_lines.value + line).takeLast(LIMIT)
     }
+
+    /**
+     * The word Firefox — and its FxA/ffvpn shortenings — never reaches any
+     * user-visible text. Everything the log screen shows passes through
+     * [add], and the services reuse this for the failure line the
+     * notification shows, so the engine's own words ("FxA session OK",
+     * ".../ffvpn/session.txt", "core=firefox") are rebranded at the edge
+     * instead of at every call site. Case is preserved: Firefox→Clxy,
+     * FIREFOX→CLXY, firefox→clxy.
+     */
+    fun sanitize(text: String): String {
+        if (text.isEmpty()) return text
+        var out = text
+        out = FIREFOX.replace(out) { rebrand(it.value) }
+        // "FxA" reads as an acronym, so it becomes CLXY rather than Clxy.
+        out = out.replace("FxA", "CLXY")
+        out = FXA.replace(out) { rebrand(it.value) }
+        out = FFVPN.replace(out) { rebrand(it.value) }
+        return out
+    }
+
+    private fun rebrand(match: String): String = when {
+        match.all { it.isUpperCase() } -> "CLXY"
+        match.first().isUpperCase() -> "Clxy"
+        else -> "clxy"
+    }
+
+    private val FIREFOX = Regex("firefox", RegexOption.IGNORE_CASE)
+    private val FXA = Regex("fxa", RegexOption.IGNORE_CASE)
+    private val FFVPN = Regex("ffvpn", RegexOption.IGNORE_CASE)
 
     @Synchronized
     fun clear() {
