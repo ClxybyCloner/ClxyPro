@@ -59,6 +59,7 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -102,10 +103,12 @@ import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.vpn.LogLine
 import com.clxypro.vpn.vpn.Logs
 import com.clxypro.vpn.vpn.NetInfo
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 @Composable
@@ -1372,7 +1375,62 @@ fun AppUpdateDialog(
     val context = LocalContext.current
     var checking by remember { mutableStateOf(false) }
     var currentUpdate by remember { mutableStateOf<GithubUpdates.Release?>(update) }
+    var downloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableIntStateOf(-1) }
+    var downloadedApk by remember { mutableStateOf<File?>(null) }
+    var downloadError by remember { mutableStateOf<String?>(null) }
+    var needsInstallPermission by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    fun resetDownload() {
+        downloadedApk = null
+        downloadError = null
+        needsInstallPermission = false
+        downloadProgress = -1
+    }
+
+    fun openReleasePage(release: GithubUpdates.Release) {
+        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(release.page)).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(browserIntent)
+    }
+
+    /** Downloads the APK for this device, then opens the system installer. */
+    fun startDownload(release: GithubUpdates.Release) {
+        if (release.downloadUrl.isBlank()) {
+            openReleasePage(release)
+            return
+        }
+        scope.launch {
+            downloading = true
+            downloadError = null
+            needsInstallPermission = false
+            downloadProgress = -1
+            try {
+                val apk = GithubUpdates.download(context, release) { pct -> downloadProgress = pct }
+                downloadedApk = apk
+                if (!GithubUpdates.install(context, apk)) {
+                    needsInstallPermission = true
+                }
+            } catch (t: CancellationException) {
+                throw t
+            } catch (t: Throwable) {
+                downloadError = t.message ?: "Download failed"
+            } finally {
+                downloading = false
+            }
+        }
+    }
+
+    /** Installs the downloaded APK; opens the allow-installs setting first when needed. */
+    fun installDownloaded() {
+        val apk = downloadedApk ?: return
+        if (!GithubUpdates.install(context, apk)) {
+            needsInstallPermission = true
+            GithubUpdates.openUnknownSourcesSetting(context)
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -1405,6 +1463,7 @@ fun AppUpdateDialog(
                                     // installed one — only a strictly newer release counts.
                                     res?.let { GithubUpdates.publish(it) }
                                     currentUpdate = res?.takeIf { GithubUpdates.isNewer(it) }
+                                    resetDownload()
                                     checking = false
                                 }
                             },
@@ -1432,24 +1491,83 @@ fun AppUpdateDialog(
                         ) {
                             Text("New Release Available: v${rel.version}", color = ClxyColors.CyanText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             Text(
-                                text = "Release tag: ${rel.tag}",
+                                text = "Release tag: ${rel.tag}" +
+                                    (if (rel.abi.isNotBlank()) " · ${rel.abi}" else ""),
                                 color = ClxyColors.TextSecondary,
                                 fontSize = 12.sp,
                             )
                             Button(
                                 onClick = {
-                                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(rel.page)).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    when {
+                                        downloading -> Unit
+                                        downloadedApk != null -> installDownloaded()
+                                        else -> startDownload(rel)
                                     }
-                                    context.startActivity(browserIntent)
                                 },
+                                enabled = !downloading,
                                 colors = ButtonDefaults.buttonColors(containerColor = ClxyColors.CyanGlow),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(46.dp),
                             ) {
-                                Text("Download Update from GitHub", color = ClxyColors.BgTop, fontWeight = FontWeight.Bold)
+                                if (downloading) {
+                                    CircularProgressIndicator(
+                                        color = ClxyColors.BgTop,
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(
+                                    text = when {
+                                        downloading && downloadProgress >= 0 -> "Downloading… $downloadProgress%"
+                                        downloading -> "Downloading…"
+                                        downloadedApk != null -> "Install Update"
+                                        else -> "Download Update"
+                                    },
+                                    color = ClxyColors.BgTop,
+                                    fontWeight = FontWeight.Bold,
+                                )
                             }
+                            if (downloading) {
+                                if (downloadProgress >= 0) {
+                                    LinearProgressIndicator(
+                                        progress = downloadProgress / 100f,
+                                        color = ClxyColors.CyanGlow,
+                                        trackColor = ClxyColors.GlassBorder,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                } else {
+                                    LinearProgressIndicator(
+                                        color = ClxyColors.CyanGlow,
+                                        trackColor = ClxyColors.GlassBorder,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            }
+                            if (needsInstallPermission) {
+                                Text(
+                                    text = "Installs from ClxyPro are not allowed yet. Tap Install to open Settings, allow it, then tap Install again.",
+                                    color = ClxyColors.AmberWarning,
+                                    fontSize = 12.sp,
+                                )
+                            }
+                            if (downloadError != null) {
+                                Text(
+                                    text = downloadError!!,
+                                    color = ClxyColors.RedDisconnectStart,
+                                    fontSize = 12.sp,
+                                )
+                            }
+                            Text(
+                                text = "or open the release page in the browser",
+                                color = ClxyColors.TextMuted,
+                                fontSize = 12.sp,
+                                modifier = Modifier
+                                    .align(Alignment.CenterHorizontally)
+                                    .clickable { openReleasePage(rel) }
+                                    .padding(vertical = 4.dp),
+                            )
                         }
                     } else {
                         Box(

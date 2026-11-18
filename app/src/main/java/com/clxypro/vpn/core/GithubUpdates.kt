@@ -1,8 +1,13 @@
 ﻿package com.clxypro.vpn.core
 
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
+import android.provider.Settings
+import androidx.core.content.FileProvider
 import com.clxypro.vpn.BuildConfig
 import com.clxypro.vpn.Notifications
 import kotlinx.coroutines.CoroutineScope
@@ -12,6 +17,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.InetSocketAddress
@@ -30,7 +36,16 @@ object GithubUpdates {
     private val lastCheckMillis = AtomicLong(0L)
     private const val CHECK_INTERVAL_MS = 15 * 60 * 1000L
 
-    data class Release(val version: String, val tag: String) {
+    data class Release(
+        val version: String,
+        val tag: String,
+        /** ABI of the asset this release points at (arm64-v8a, armeabi-v7a, universal). */
+        val abi: String = "universal",
+        /** Direct download URL of that asset; blank when the API gave none. */
+        val downloadUrl: String = "",
+        /** Asset size in bytes, 0 when unknown. */
+        val size: Long = 0L,
+    ) {
         val page: String get() = "$RELEASES_PAGE/tag/$tag"
     }
 
@@ -79,14 +94,20 @@ object GithubUpdates {
         AppState.update { it.copy(update = if (isNewer(release)) release else null) }
     }
 
-    suspend fun check(): Release = withContext(Dispatchers.IO) {
-        // Only proxy mode needs the local front: a VPN already carries this request,
-        // and there the front is opened just for LAN sharing, so it is usually absent.
-        val proxy = if (AppState.state.connected && Prefs.mode == AppState.Mode.PROXY) {
+    /**
+     * Only proxy mode needs the local front: a VPN already carries this request,
+     * and there the front is opened just for LAN sharing, so it is usually absent.
+     * Shared by the release check and the APK download.
+     */
+    private fun githubProxy(): Proxy =
+        if (AppState.state.connected && Prefs.mode == AppState.Mode.PROXY) {
             Proxy(Proxy.Type.HTTP, InetSocketAddress(Prefs.LOOPBACK, Prefs.httpPort))
         } else {
             Proxy.NO_PROXY
         }
+
+    suspend fun check(): Release = withContext(Dispatchers.IO) {
+        val proxy = githubProxy()
         var newest: Release? = null
         for (page in 1..10) {
             ensureActive()
@@ -105,9 +126,7 @@ object GithubUpdates {
                 ensureActive()
                 candidates(json, Build.SUPPORTED_ABIS.toList()).forEach { release ->
                     val previous = newest
-                    if (previous == null || compareVersions(release.version, previous.version) > 0 ||
-                        (compareVersions(release.version, previous.version) == 0 && previous.tag == "latest")
-                    ) {
+                    if (previous == null || isBetterRelease(release, previous)) {
                         newest = release
                     }
                 }
@@ -119,6 +138,126 @@ object GithubUpdates {
             }
         }
         throw IOException("Incomplete GitHub release list")
+    }
+
+    /**
+     * Newest version wins; on a tie a versioned tag beats the rolling "latest"
+     * tag, and the asset matching this device's own ABI beats the universal
+     * one, so the download button fetches the smallest APK that runs here.
+     */
+    private fun isBetterRelease(candidate: Release, current: Release): Boolean {
+        val byVersion = compareVersions(candidate.version, current.version)
+        if (byVersion != 0) return byVersion > 0
+        if ((current.tag == "latest") != (candidate.tag == "latest")) return candidate.tag != "latest"
+        return abiRank(candidate.abi) > abiRank(current.abi)
+    }
+
+    private fun abiRank(abi: String): Int = when (abi) {
+        Build.SUPPORTED_ABIS.firstOrNull() -> 2
+        in Build.SUPPORTED_ABIS -> 1
+        "universal" -> 0
+        else -> -1
+    }
+
+    /**
+     * Downloads the release's APK for this device straight from GitHub, with
+     * progress (0..100, or -1 while the size is unknown). The file lands in
+     * cacheDir/updates/ and is verified against the asset size and by asking
+     * the package manager to parse it, so a truncated download never reaches
+     * the installer. Throws IOException on any failure; a failed download
+     * leaves no partial file behind.
+     */
+    suspend fun download(
+        context: Context,
+        release: Release,
+        onProgress: (Int) -> Unit,
+    ): File = withContext(Dispatchers.IO) {
+        require(release.downloadUrl.isNotBlank()) { "Release has no download URL" }
+        val dir = File(context.cacheDir, "updates").apply { mkdirs() }
+        dir.listFiles()?.forEach { runCatching { it.delete() } }
+        val file = File(dir, "ClxyPro-${release.version}-${release.abi}.apk")
+        val connection = URL(release.downloadUrl).openConnection(githubProxy()) as HttpURLConnection
+        try {
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 30_000
+            connection.instanceFollowRedirects = true
+            connection.setRequestProperty("Accept", "application/octet-stream")
+            connection.setRequestProperty("User-Agent", "ClxyPro")
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                throw IOException("GitHub download HTTP ${connection.responseCode}")
+            }
+            val total = connection.contentLengthLong.takeIf { it > 0 } ?: release.size
+            var readSoFar = 0L
+            var lastReported = -1
+            onProgress(-1)
+            connection.inputStream.use { input ->
+                file.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        ensureActive()
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        output.write(buffer, 0, read)
+                        readSoFar += read
+                        if (total > 0) {
+                            val pct = ((readSoFar * 100) / total).toInt().coerceIn(0, 100)
+                            if (pct != lastReported) {
+                                lastReported = pct
+                                onProgress(pct)
+                            }
+                        }
+                    }
+                }
+            }
+            if (total > 0 && readSoFar != total) {
+                throw IOException("Download incomplete ($readSoFar of $total bytes)")
+            }
+            val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageArchiveInfo(
+                    file.absolutePath, PackageManager.PackageInfoFlags.of(0)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
+            } ?: throw IOException("Downloaded file is not a valid APK")
+            if (info.packageName != context.packageName) {
+                throw IOException("Downloaded APK is for another app (${info.packageName})")
+            }
+            onProgress(100)
+            file
+        } catch (t: Throwable) {
+            runCatching { file.delete() }
+            throw t
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
+     * Fires the system installer for a downloaded APK. Returns false when the
+     * user has not allowed installs from this app yet — the caller should
+     * then send them to the unknown-apps setting.
+     */
+    fun install(context: Context, apk: File): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !context.packageManager.canRequestPackageInstalls()
+        ) return false
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apk)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+        }
+        context.startActivity(intent)
+        return true
+    }
+
+    /** Opens the per-app "allow installs from this app" setting. */
+    fun openUnknownSourcesSetting(context: Context) {
+        val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+            data = Uri.parse("package:${context.packageName}")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
     }
 
     internal fun candidates(json: String, supportedAbis: List<String>): List<Release> {
@@ -140,7 +279,13 @@ object GithubUpdates {
                     supportedAbis.any { it == "arm64-v8a" || it == "armeabi-v7a" })
                 if (!compatible || (tag != "latest" && tag.removePrefix("v") != version)) continue
                 compareVersions(version, version)
-                result += Release(version, tag)
+                result += Release(
+                    version,
+                    tag,
+                    abi,
+                    asset.optString("browser_download_url", ""),
+                    asset.getLong("size"),
+                )
             }
         }
         return result
