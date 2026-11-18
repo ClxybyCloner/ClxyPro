@@ -1401,7 +1401,10 @@ fun AppUpdateDialog(
                                 scope.launch {
                                     checking = true
                                     val res = runCatching { GithubUpdates.check() }.getOrNull()
-                                    currentUpdate = res
+                                    // check() returns the newest release even when it is the
+                                    // installed one — only a strictly newer release counts.
+                                    res?.let { GithubUpdates.publish(it) }
+                                    currentUpdate = res?.takeIf { GithubUpdates.isNewer(it) }
                                     checking = false
                                 }
                             },

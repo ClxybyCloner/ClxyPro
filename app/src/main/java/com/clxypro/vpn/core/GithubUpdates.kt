@@ -70,10 +70,13 @@ object GithubUpdates {
         }
     }
 
+    /** True only when the release is strictly newer than the installed version. */
+    fun isNewer(release: Release): Boolean =
+        compareVersions(release.version, BuildConfig.VERSION_NAME) > 0
+
     /** Records what a check found, so the home screen badge agrees with Settings. */
     fun publish(release: Release) {
-        val newer = compareVersions(release.version, BuildConfig.VERSION_NAME) > 0
-        AppState.update { it.copy(update = if (newer) release else null) }
+        AppState.update { it.copy(update = if (isNewer(release)) release else null) }
     }
 
     suspend fun check(): Release = withContext(Dispatchers.IO) {
