@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import com.clxypro.vpn.core.AppState
+import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.service.ProxyService
 import com.clxypro.vpn.service.TunnelVpnService
@@ -96,6 +97,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         AppLocale.sync(this)
+        // Every app open looks for a newer release (throttled inside).
+        GithubUpdates.maybeCheck(this)
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -1,7 +1,10 @@
 ﻿package com.clxypro.vpn.core
 
+import android.content.Context
 import android.os.Build
+import android.os.SystemClock
 import com.clxypro.vpn.BuildConfig
+import com.clxypro.vpn.Notifications
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -15,6 +18,7 @@ import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.URL
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 object GithubUpdates {
     const val RELEASES_PAGE = "https://github.com/ClxybyCloner/ClxyPro/releases"
@@ -23,6 +27,8 @@ object GithubUpdates {
 
     private val autoChecked = AtomicBoolean(false)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val lastCheckMillis = AtomicLong(0L)
+    private const val CHECK_INTERVAL_MS = 15 * 60 * 1000L
 
     data class Release(val version: String, val tag: String) {
         val page: String get() = "$RELEASES_PAGE/tag/$tag"
@@ -36,6 +42,31 @@ object GithubUpdates {
         if (!autoChecked.compareAndSet(false, true)) return
         scope.launch {
             runCatching { check() }.getOrNull()?.let { publish(it) }
+        }
+    }
+
+    /**
+     * Arman-style check: runs on every app open and every successful
+     * connect, so a new release is noticed the same day instead of only
+     * after the process restarts. A newer release updates AppState (home
+     * banner + Profile badge) and posts one notification per version.
+     * Throttled to one look per 15 minutes so a burst of foreground
+     * returns or reconnects does not hammer the GitHub API.
+     */
+    fun maybeCheck(context: Context) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastCheckMillis.get() < CHECK_INTERVAL_MS) return
+        lastCheckMillis.set(now)
+        val appContext = context.applicationContext
+        scope.launch {
+            val release = runCatching { check() }.getOrNull() ?: return@launch
+            publish(release)
+            if (compareVersions(release.version, BuildConfig.VERSION_NAME) > 0 &&
+                Prefs.lastNotifiedUpdate != release.version
+            ) {
+                Prefs.lastNotifiedUpdate = release.version
+                Notifications.showUpdate(appContext, release)
+            }
         }
     }
 

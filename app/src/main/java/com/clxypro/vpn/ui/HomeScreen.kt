@@ -47,6 +47,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -102,6 +103,7 @@ fun HomeScreen(
     val isConnected = state.connected
     val isConnecting = state.busy || (state.running && !state.connected && !state.disconnecting)
     val hasFailure = !state.running && (state.diagnosis.isNotEmpty() || state.statusCode < 0)
+    var showUpdate by remember { mutableStateOf(false) }
 
     val statusColor by animateColorAsState(
         targetValue = when {
@@ -259,6 +261,45 @@ fun HomeScreen(
                 labelSizeSp = if (compact) 14f else 15f,
             )
             Spacer(modifier = Modifier.height(sectionGap))
+
+            // New-release banner: same update dialog as Profile.
+            val update = state.update
+            if (update != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 380.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(ClxyColors.CardSurface)
+                        .border(1.dp, ClxyColors.CyanBorder, RoundedCornerShape(999.dp))
+                        .clickable { showUpdate = true }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        Icons.Rounded.SystemUpdate,
+                        contentDescription = null,
+                        tint = ClxyColors.CyanText,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = "New version v${update.version} available",
+                        color = ClxyColors.CyanText,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = ClxyColors.CyanText,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                Spacer(modifier = Modifier.height(sectionGap))
+            }
+            if (showUpdate) AppUpdateDialog(update = state.update, onDismiss = { showUpdate = false })
 
             // Dual Core Switcher (1-tap toggle between Hyper and Aether/Quantum)
             Row(

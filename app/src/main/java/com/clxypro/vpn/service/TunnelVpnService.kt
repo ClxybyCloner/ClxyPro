@@ -18,6 +18,7 @@ import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.CoreRegistry
 import com.clxypro.vpn.core.Diagnostics
 import com.clxypro.vpn.core.EngineHandoff
+import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.core.Reachability
 import com.clxypro.vpn.core.RetryLadder
@@ -311,6 +312,8 @@ class TunnelVpnService : VpnService() {
                     )
                 }
                 AppState.log("VPN up, core=${selected.id}, socks=$coreProxy")
+                // The tunnel is up, so GitHub is reachable: look for a newer release.
+                GithubUpdates.maybeCheck(this@TunnelVpnService)
                 ExitProbe.start()
                 if (Prefs.shareLan) {
                     ProxyFront.start(coreProxy)

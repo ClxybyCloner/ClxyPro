@@ -14,6 +14,7 @@ import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.CoreRegistry
 import com.clxypro.vpn.core.Diagnostics
 import com.clxypro.vpn.core.EngineHandoff
+import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.core.Reachability
 import com.clxypro.vpn.core.RetryLadder
@@ -304,6 +305,8 @@ class ProxyService : Service() {
                 )
             )
         }
+        // The proxy is up, so GitHub is reachable: look for a newer release.
+        GithubUpdates.maybeCheck(this)
         if (notified.compareAndSet(false, true)) {
             AppState.log("SOCKS5 listening on ${Prefs.socksAddress}, HTTP on ${Prefs.httpAddress}")
             ExitProbe.start()

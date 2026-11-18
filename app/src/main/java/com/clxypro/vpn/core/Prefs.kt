@@ -202,6 +202,11 @@ object Prefs {
         get() = prefs().getBoolean("show_speed_notification", true)
         set(value) { prefs().edit().putBoolean("show_speed_notification", value).apply() }
 
+    /** Last version an update notification was shown for; avoids re-notifying. */
+    var lastNotifiedUpdate: String
+        get() = prefs().getString("last_notified_update", "").orEmpty()
+        set(value) { prefs().edit().putString("last_notified_update", value).apply() }
+
     val socksAddress: String get() = "$LOOPBACK:$socksPort"
     val httpAddress: String get() = "$LOOPBACK:$httpPort"
 }
