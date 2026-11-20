@@ -366,8 +366,8 @@ fun ServersScreen(
 
                 item {
                     AutoChoiceRow(
-                        title = if (isQuantumScreen) "Auto Scan" else "Recommended Location",
-                        subtitle = if (isQuantumScreen) "Scans for a working relay automatically" else "Germany first, then the fastest working route",
+                        title = if (isQuantumScreen) "Auto Scan · Recommended" else "Recommended Location",
+                        subtitle = if (isQuantumScreen) "Last working relay first, then scan for a relay" else "Germany first, then the fastest working route",
                         pingMs = if (isQuantumScreen) -1 else serverPings[""] ?: 38,
                         selected = activePinned.isBlank(),
                         onClick = { onSelectServer("", "Auto") },
