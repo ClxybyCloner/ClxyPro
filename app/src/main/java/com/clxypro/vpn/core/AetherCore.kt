@@ -74,6 +74,15 @@ class AetherCore : VpnCore {
         EngineProc.reapOrphanedEngines { AppState.log("engine $id: $it") }
         socksPortUsed = LocalPorts.resolve(Prefs.socksPort) { AppState.log("engine $id: $it") }
 
+        // A pinned Quantum relay (Servers screen) is dialled first: overwrite
+        // the cached peer at CONNECT time — a scan's discovered peer overwrites
+        // this key during the run, so writing at select time would not stick.
+        val pinned = Prefs.server("aether")
+        if (pinned.isNotBlank()) {
+            prefs.edit().putString(KEY_CACHED_PEER, pinned.trim()).apply()
+            AppState.log("engine $id: pinned relay ${pinned.trim()}")
+        }
+
         // 1. FAST RECONNECT: Check if we have a previously cached working peer
         val cached = prefs.getString(KEY_CACHED_PEER, null)
         if (!cached.isNullOrBlank()) {

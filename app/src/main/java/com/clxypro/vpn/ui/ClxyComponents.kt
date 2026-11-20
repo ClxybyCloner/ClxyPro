@@ -553,25 +553,26 @@ fun ClxyBottomNavBar(
                     onClick = { onSelectTab(MainTab.HOME) },
                 )
 
-                if (!isQuantum) {
-                    // Tab 2: Servers / Route
-                    BottomNavItem(
-                        selected = activeTab == MainTab.SERVERS,
-                        label = "Servers",
-                        activeColor = activeTint,
-                        tag = "nav_servers_button",
-                        icon = { selected, tint ->
-                            Icon(
-                                imageVector = if (selected) Icons.Filled.Public else Icons.Outlined.Public,
-                                contentDescription = "Servers",
-                                tint = tint,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        },
-                        onClick = { onSelectTab(MainTab.SERVERS) },
-                    )
+                // Tab 2: Servers / Route — both engines (Quantum got its server
+                // list in 1.5.21, ported from the Windows app).
+                BottomNavItem(
+                    selected = activeTab == MainTab.SERVERS,
+                    label = "Servers",
+                    activeColor = activeTint,
+                    tag = "nav_servers_button",
+                    icon = { selected, tint ->
+                        Icon(
+                            imageVector = if (selected) Icons.Filled.Public else Icons.Outlined.Public,
+                            contentDescription = "Servers",
+                            tint = tint,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    onClick = { onSelectTab(MainTab.SERVERS) },
+                )
 
-                    // Tab 3: Profile / Settings
+                if (!isQuantum) {
+                    // Tab 3: Profile / Settings — Hyper only
                     BottomNavItem(
                         selected = activeTab == MainTab.PROFILE,
                         label = "Profile",

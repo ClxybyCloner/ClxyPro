@@ -23,7 +23,7 @@ data class ServerOption(
  * is kept per core in [Prefs]; an empty key means Auto — scan, rank, dial.
  */
 object ServerChoice {
-    private val SELECTABLE = setOf("firefox")
+    private val SELECTABLE = setOf("firefox", "aether")
 
     // The last test per core, kept beyond the picker's own lifetime so reopening
     // it shows the same order, speeds and reachable set instead of the raw list.
@@ -45,8 +45,11 @@ object ServerChoice {
     fun options(context: Context, coreId: String): List<ServerOption> {
         val list = when (coreId) {
             "firefox" -> ServerList.readCache(Store.cacheFile(context)).map { firefoxOption(it) }
+            "aether" -> QuantumSub.relays(context).map { ServerOption(it.endpoint, it.name, it.endpoint) }
             else -> emptyList()
         }
+        // Quantum keeps the sub's own order (ClXY 1..20); the Firefox list is alphabetical.
+        if (coreId == "aether") return list.distinctBy { it.key }
         return list.distinctBy { it.key }.sortedWith(compareBy({ it.label.lowercase() }, { it.key }))
     }
 

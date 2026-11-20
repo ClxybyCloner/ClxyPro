@@ -57,6 +57,7 @@ import com.clxypro.vpn.Texts
 import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.core.ServerChoice
+import com.clxypro.vpn.core.QuantumSub
 import com.clxypro.vpn.core.ServerOption
 import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.ui.theme.InterFontFamily
@@ -132,26 +133,38 @@ fun ServersScreen(
     val serverPings = remember { mutableStateMapOf<String, Int>() }
     var lastPingSummary by remember { mutableStateOf<String?>(null) }
 
-    // Read real servers from current engine if supported
-    val coreServers = remember(state.coreId) {
-        if (ServerChoice.supports(state.coreId)) {
-            val opts = ServerChoice.options(context, state.coreId)
-            opts.mapIndexed { idx, opt ->
-                // Infer from the (cleaned) label only: the key is the raw
-                // edge address, and substring-matching it misfires
-                // (e.g. a hostname containing "ch" would read as Switzerland).
-                val code = inferCountryCode(opt.label, "")
-                DisplayServer(
-                    key = opt.key,
-                    flagCode = code,
-                    title = opt.label,
-                    city = fakeVlessUri(opt.key, code, opt.label),
-                    countryName = opt.label,
-                    pingMs = opt.latencyMs.takeIf { it > 0 } ?: -1,
-                )
-            }
-        } else {
-            emptyList()
+    val isQuantumScreen = state.coreId == "aether"
+
+    // Read real servers from current engine if supported. Quantum rows show
+    // the relay endpoint itself (its own sub relays, like the Windows app);
+    // Hyper rows keep the display-only fake VLESS URI that hides the real
+    // edge address.
+    fun loadServers(): List<DisplayServer> {
+        if (!ServerChoice.supports(state.coreId)) return emptyList()
+        return ServerChoice.options(context, state.coreId).map { opt ->
+            // Infer from the (cleaned) label only: the key is the raw
+            // edge address, and substring-matching it misfires
+            // (e.g. a hostname containing "ch" would read as Switzerland).
+            val code = if (isQuantumScreen) "CF" else inferCountryCode(opt.label, "")
+            DisplayServer(
+                key = opt.key,
+                flagCode = code,
+                title = opt.label,
+                city = if (isQuantumScreen) opt.key else fakeVlessUri(opt.key, code, opt.label),
+                countryName = opt.label,
+                pingMs = opt.latencyMs.takeIf { it > 0 } ?: -1,
+            )
+        }
+    }
+
+    var coreServers by remember(state.coreId) { mutableStateOf(loadServers()) }
+
+    // Quantum's list comes from the sub, not the core: refresh it in the
+    // background when the screen opens; the cached/bundled list shows meanwhile.
+    LaunchedEffect(state.coreId) {
+        if (isQuantumScreen) {
+            val fresh = withContext(Dispatchers.IO) { QuantumSub.refresh(context) }
+            if (fresh != null) coreServers = loadServers()
         }
     }
 
@@ -175,7 +188,9 @@ fun ServersScreen(
         scope.launch {
             val jobs = allServers.map { srv ->
                 async(Dispatchers.IO) {
-                    val measured = measureSocketPing(srv.key)
+                    // Quantum pings are real TCP connects (IPv6-aware, -1 on
+                    // failure); Hyper keeps the legacy socket ping.
+                    val measured = if (isQuantumScreen) QuantumSub.pingRelay(srv.key) else measureSocketPing(srv.key)
                     srv.key to measured
                 }
             }
@@ -184,7 +199,7 @@ fun ServersScreen(
                 serverPings[key] = ms
             }
             val valid = results.map { it.second }.filter { it > 0 }
-            serverPings[""] = valid.minOrNull() ?: 38
+            if (!isQuantumScreen) serverPings[""] = valid.minOrNull() ?: 38
             lastPingSummary = if (valid.isNotEmpty()) {
                 "Tested ${valid.size} of ${allServers.size} locations · ${valid.minOrNull()} ms - ${valid.maxOrNull()} ms"
             } else {
@@ -351,9 +366,9 @@ fun ServersScreen(
 
                 item {
                     AutoChoiceRow(
-                        title = "Recommended Location",
-                        subtitle = "Germany first, then the fastest working route",
-                        pingMs = serverPings[""] ?: 38,
+                        title = if (isQuantumScreen) "Auto Scan" else "Recommended Location",
+                        subtitle = if (isQuantumScreen) "Scans for a working relay automatically" else "Germany first, then the fastest working route",
+                        pingMs = if (isQuantumScreen) -1 else serverPings[""] ?: 38,
                         selected = activePinned.isBlank(),
                         onClick = { onSelectServer("", "Auto") },
                     )

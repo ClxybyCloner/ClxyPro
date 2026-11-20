@@ -81,6 +81,7 @@ import androidx.compose.ui.unit.sp
 import com.clxypro.vpn.Texts
 import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.Prefs
+import com.clxypro.vpn.core.QuantumSub
 import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.vpn.Store
 import com.clxypro.vpn.vpn.cleanDisplayLabel
@@ -221,6 +222,10 @@ fun HomeScreen(
     // The saved label may predate label cleaning ("CatchAll Anycast / USA");
     // clean it here so the disconnected home never shows the raw name.
     val pinnedLabel = cleanDisplayLabel(Prefs.serverLabel("firefox"))
+    // Quantum's pinned relay (Servers screen). The stored label is renamed
+    // here too, so a relay pinned by an older version shows its current name.
+    val quantumPinned = Prefs.server("aether")
+    val quantumPinnedLabel = QuantumSub.remarkRelayName(cleanDisplayLabel(Prefs.serverLabel("aether")))
     val destCode = if (isQuantum) "CLXY" else {
         // Never take(2) of the exit NAME: "CatchAll Anycast / USA"
         // became "CA" and drew the Canada flag for a USA server.
@@ -228,12 +233,20 @@ fun HomeScreen(
         else if (pinned.isNotBlank()) inferCountryCode(pinnedLabel, pinned)
         else "REC"
     }
-    val destName = if (isQuantum) "CLXY Anycast Mesh" else {
+    val destName = if (isQuantum) {
+        if (state.exit.isNotEmpty()) state.exit
+        else if (quantumPinnedLabel.isNotBlank()) quantumPinnedLabel
+        else "Auto Scan"
+    } else {
         if (state.exit.isNotEmpty()) state.exit
         else if (pinnedLabel.isNotBlank()) pinnedLabel
         else "Auto Route · Recommended"
     }
-    val destIp = if (isQuantum) "Direct MASQUE Route" else {
+    val destIp = if (isQuantum) {
+        if (state.exitIp.isNotEmpty()) state.exitIp
+        else if (quantumPinned.isNotBlank()) quantumPinned
+        else "Direct MASQUE Route"
+    } else {
         if (state.exitIp.isNotEmpty()) state.exitIp
         else if (isConnected) "Direct Tunnel"
         else "Auto Route"
