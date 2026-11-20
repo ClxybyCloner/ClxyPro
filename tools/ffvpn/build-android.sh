@@ -83,12 +83,21 @@ printf 'Copying %s to %s\n' "$SRC" "$SCRATCH"
 #     call is skipped while it is fresh; a new token or a stale cache
 #     re-validates, and a failed check deletes the cache. The OAuth fetch that
 #     follows still proves the session live on every connect.
+#   oauth-token-cache.patch - the same treatment for the OAuth token: the
+#     /oauth/authorization exchange stalls like the session check on a
+#     filtered path (seen 2026-11-21: 30 s timeout after the session check
+#     itself was cached), so the token is cached next to the session file
+#     until its server-reported expiry (2-minute lead) and reused while
+#     fresh, the way the desktop core's FreshRuntimeAuth works. Bound to
+#     the session token; a Guardian 401 drops the cache and retries once
+#     with a freshly exchanged token. TokenForSessionExpiry is the only
+#     API change (TokenForSession delegates to it).
 #
 # Retired: ua-identity.patch. Upstream now gets past the edge's HTTP 406 by
 # solving the Fastly anti-bot challenge itself (internal/fxa/challenge.go)
 # with a browser User-Agent, which is what the app-identity spoof used to
 # paper over.
-for patch in fxa-v2-salt session-token-file serverlist-json captcha-prompt handshake-timeout session-check-cache; do
+for patch in fxa-v2-salt session-token-file serverlist-json captcha-prompt handshake-timeout session-check-cache oauth-token-cache; do
     case $patch in
         fxa-v2-salt) marker='clientSalt), 650000'; file=internal/fxa/crypto.go ;;
         session-token-file) marker=readSessionFile; file=main.go ;;
@@ -96,6 +105,7 @@ for patch in fxa-v2-salt session-token-file serverlist-json captcha-prompt hands
         captcha-prompt) marker=SetCaptchaSolver; file=internal/fxa/challenge.go ;;
         handshake-timeout) marker=netx.Client; file=internal/fxa/client.go ;;
         session-check-cache) marker=sessionUID; file=main.go ;;
+        oauth-token-cache) marker=cachedOAuthToken; file=main.go ;;
     esac
     if ! grep -q "$marker" "$SCRATCH/$file"; then
         echo "Applying $patch.patch"

@@ -1,0 +1,195 @@
+--- a/main.go
++++ b/main.go
+@@ -173,7 +173,8 @@
+ 
+ 	oauthClient := fxa.NewOAuthClient(opts.oauthServer, opts.clientID)
+ 	getOAuthToken := func() (string, error) {
+-		return oauthClient.TokenForSession(session, []string{"profile", vpnScope})
++		token, _, err := cachedOAuthToken(oauthClient, session, opts)
++		return token, err
+ 	}
+ 
+ 	// ---- 2. Activate Guardian and check entitlement ----------------------
+@@ -184,6 +185,20 @@
+ 	}
+ 	ent, _, err := guardianClient.Activate(oauthToken)
+ 	if err != nil {
++		// A cached token may have died server-side while its clock still
++		// looked fresh; drop it and try once with a freshly exchanged
++		// token before giving up. Any other failure passes through.
++		var gerr *guardian.Error
++		if errors.As(err, &gerr) && gerr.Kind == guardian.KindUnauthorized {
++			log.Printf("OAuth token rejected; exchanging a fresh one")
++			dropOAuthToken(opts.sessionTokenFile)
++			if oauthToken, err = getOAuthToken(); err != nil {
++				return fmt.Errorf("getting OAuth token: %w", err)
++			}
++			ent, _, err = guardianClient.Activate(oauthToken)
++		}
++	}
++	if err != nil {
+ 		return fmt.Errorf("activating proxy service: %w", err)
+ 	}
+ 	log.Printf("Entitlement: subscribed=%v uid=%d maxBytes=%s limitedBandwidth=%v",
+@@ -594,6 +609,79 @@
+ 	_ = os.WriteFile(verifiedSessionFile(tokenFile), []byte(body), 0o600)
+ }
+ 
++// oauthTokenLead is the safety margin before a cached OAuth token's expiry:
++// the token is treated as dead this long before the server says it is, the
++// way the desktop core's FreshRuntimeAuth keeps a 2-minute lead.
++const oauthTokenLead = 2 * time.Minute
++
++// cachedOAuthToken returns an OAuth access token for the session, reusing a
++// cached one while it is fresh. The authorization exchange hits
++// oauth.accounts.firefox.com, which stalls like the auth server on a
++// filtered path (seen 2026-11-21: /oauth/authorization timed out after the
++// session check itself was cached); a cached token skips both calls. The
++// cache lives next to the token file and is bound to the session token, so
++// a new sign-in re-exchanges. The second return value reports a cache hit.
++func cachedOAuthToken(oauthClient *fxa.OAuthClient, session *fxa.Session, opts *options) (string, bool, error) {
++	if opts.sessionTokenFile != "" {
++		if token, ok := readOAuthToken(opts.sessionTokenFile, session.Token); ok {
++			log.Printf("Using cached OAuth token")
++			return token, true, nil
++		}
++	}
++	token, expiresIn, err := oauthClient.TokenForSessionExpiry(session, []string{"profile", vpnScope})
++	if err != nil {
++		return "", false, err
++	}
++	if opts.sessionTokenFile != "" && expiresIn > oauthTokenLead {
++		writeOAuthToken(opts.sessionTokenFile, session.Token, token, time.Now().Add(expiresIn-oauthTokenLead))
++	}
++	return token, false, nil
++}
++
++func oauthTokenFile(tokenFile string) string { return tokenFile + ".oauth" }
++
++// readOAuthToken returns the cached token when the sidecar file holds one
++// for this exact session token that has not expired yet.
++func readOAuthToken(tokenFile, sessionToken string) (string, bool) {
++	data, err := os.ReadFile(oauthTokenFile(tokenFile))
++	if err != nil {
++		return "", false
++	}
++	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
++	if len(lines) != 3 {
++		return "", false
++	}
++	sum := sha256.Sum256([]byte(sessionToken))
++	if lines[0] != hex.EncodeToString(sum[:]) {
++		return "", false
++	}
++	expiresUnix, err := strconv.ParseInt(strings.TrimSpace(lines[2]), 10, 64)
++	if err != nil || time.Now().Unix() >= expiresUnix {
++		return "", false
++	}
++	token := strings.TrimSpace(lines[1])
++	if token == "" {
++		return "", false
++	}
++	return token, true
++}
++
++// writeOAuthToken records a fresh token with its expiry. A write failure is
++// ignored: the next connect simply exchanges again.
++func writeOAuthToken(tokenFile, sessionToken, token string, expires time.Time) {
++	sum := sha256.Sum256([]byte(sessionToken))
++	body := hex.EncodeToString(sum[:]) + "\n" + token + "\n" +
++		strconv.FormatInt(expires.Unix(), 10) + "\n"
++	// An OAuth token is a bearer credential; keep it 0600 like the session.
++	_ = os.WriteFile(oauthTokenFile(tokenFile), []byte(body), 0o600)
++}
++
++func dropOAuthToken(tokenFile string) {
++	if tokenFile != "" {
++		os.Remove(oauthTokenFile(tokenFile))
++	}
++}
++
+ func interactiveLogin(opts *options) (*fxa.Session, error) {
+ 	password := opts.password
+ 	if password == "" {
+--- a/internal/fxa/oauth.go
++++ b/internal/fxa/oauth.go
+@@ -75,18 +75,26 @@
+ // -> parse the auth code from the returned redirect URL -> POST /token with
+ // the code verifier.
+ func (c *OAuthClient) TokenForSession(s *Session, scopes []string) (string, error) {
++	token, _, err := c.TokenForSessionExpiry(s, scopes)
++	return token, err
++}
++
++// TokenForSessionExpiry is TokenForSession with the token's lifetime, so a
++// caller can cache the token until it expires instead of exchanging a fresh
++// code on every connect. expiresIn is 0 when the server did not report one.
++func (c *OAuthClient) TokenForSessionExpiry(s *Session, scopes []string) (string, time.Duration, error) {
+ 	auth, err := SessionAuthHeader(s.Token)
+ 	if err != nil {
+-		return "", err
++		return "", 0, err
+ 	}
+ 	verifier, err := randomB64(32)
+ 	if err != nil {
+-		return "", err
++		return "", 0, err
+ 	}
+ 	sum := sha256.Sum256([]byte(verifier))
+ 	state, err := randomB64(24)
+ 	if err != nil {
+-		return "", err
++		return "", 0, err
+ 	}
+ 
+ 	authBody := map[string]any{
+@@ -100,23 +108,23 @@
+ 	}
+ 	authResp, err := c.post("/oauth/authorization", authBody, auth)
+ 	if err != nil {
+-		return "", err
++		return "", 0, err
+ 	}
+ 	redirect, _ := authResp["redirect"].(string)
+ 	if redirect == "" {
+-		return "", errors.New("fxa oauth: no redirect in authorization response")
++		return "", 0, errors.New("fxa oauth: no redirect in authorization response")
+ 	}
+ 	u, err := url.Parse(redirect)
+ 	if err != nil {
+-		return "", fmt.Errorf("fxa oauth: bad redirect URL: %w", err)
++		return "", 0, fmt.Errorf("fxa oauth: bad redirect URL: %w", err)
+ 	}
+ 	q := u.Query()
+ 	if got := q.Get("state"); got != state {
+-		return "", errors.New("fxa oauth: state mismatch in redirect")
++		return "", 0, errors.New("fxa oauth: state mismatch in redirect")
+ 	}
+ 	code := q.Get("code")
+ 	if code == "" {
+-		return "", fmt.Errorf("fxa oauth: no code in redirect (error=%s)", q.Get("error"))
++		return "", 0, fmt.Errorf("fxa oauth: no code in redirect (error=%s)", q.Get("error"))
+ 	}
+ 
+ 	tokenResp, err := c.post("/token", map[string]any{
+@@ -125,13 +133,17 @@
+ 		"code_verifier": verifier,
+ 	}, "")
+ 	if err != nil {
+-		return "", err
++		return "", 0, err
+ 	}
+ 	accessToken, _ := tokenResp["access_token"].(string)
+ 	if accessToken == "" {
+-		return "", errors.New("fxa oauth: no access_token in token response")
++		return "", 0, errors.New("fxa oauth: no access_token in token response")
++	}
++	var expiresIn time.Duration
++	if secs, ok := tokenResp["expires_in"].(float64); ok && secs > 0 {
++		expiresIn = time.Duration(secs) * time.Second
+ 	}
+-	return accessToken, nil
++	return accessToken, expiresIn, nil
+ }
+ 
+ // post performs one OAuth API request. Like the auth client, the OAuth server

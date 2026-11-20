@@ -450,7 +450,7 @@ class TunnelVpnService : VpnService() {
         attempt = failures
         // A stalled session check clears at random: retry it quickly instead
         // of backing off, or the long pauses stretch a 2-minute connect further.
-        val delay = if (FailureText.isSessionTimeout(detail)) RetryLadder.SESSION_STALL_MS
+        val delay = if (FailureText.isStallTimeout(detail)) RetryLadder.SESSION_STALL_MS
             else RetryLadder.delayMillis(failures)
         AppState.log("attempt $failures failed (${detail.ifBlank { "code $code" }}), retrying in ${delay}ms")
         val gen = generation.incrementAndGet()

@@ -41,6 +41,7 @@ class FirefoxEngine(private val context: Context) {
      */
     @Volatile
     private var sessionCheckAt = 0L
+    private var oauthCheckAt = 0L
 
     /** What the engine dialled last; the UI shows its country and latency. */
     @Volatile
@@ -110,6 +111,7 @@ class FirefoxEngine(private val context: Context) {
         listening = false
         lastLine = ""
         sessionCheckAt = 0L
+        oauthCheckAt = 0L
 
         // Never bind a port that is already taken: the engine would exit(1)
         // and every retry would fail the same way. The bridge, watchdog and
@@ -163,6 +165,18 @@ class FirefoxEngine(private val context: Context) {
                 destroyChild()
                 return FailureText.SESSION_TIMEOUT
             }
+            // Same stall, one step later: /oauth/authorization also hangs
+            // the engine's whole 30 s timeout on a filtered path (seen
+            // 2026-11-21, after the session check itself was cached).
+            // The desktop core caps the OAuth step at 15 s; do the same
+            // here. Once "Entitlement:" appears the cutoff is off.
+            val oauthAt = oauthCheckAt
+            if (oauthAt > 0L &&
+                SystemClock.elapsedRealtime() - oauthAt >= OAUTH_CUTOFF_MS
+            ) {
+                destroyChild()
+                return FailureText.OAUTH_TIMEOUT
+            }
             if (SystemClock.elapsedRealtime() - startedAt >= PER_SERVER_MS) {
                 destroyChild()
                 return context.getString(R.string.error_no_proxy, PER_SERVER_MS / 1000)
@@ -187,7 +201,11 @@ class FirefoxEngine(private val context: Context) {
                     if (lastLine.contains("Using cached session token")) {
                         sessionCheckAt = SystemClock.elapsedRealtime()
                     }
-                    if (lastLine.contains("session OK")) sessionCheckAt = 0L
+                    if (lastLine.contains("session OK")) {
+                        sessionCheckAt = 0L
+                        oauthCheckAt = SystemClock.elapsedRealtime()
+                    }
+                    if (lastLine.contains("Entitlement:")) oauthCheckAt = 0L
                     if (listeningLine.containsMatchIn(lastLine)) listening = true
                     if (quotaLine.containsMatchIn(lastLine)) {
                         Store.setQuota(context, lastLine.substringAfter("Bandwidth:").trim())
@@ -227,6 +245,8 @@ class FirefoxEngine(private val context: Context) {
         // Six times the ~2 s a healthy session check takes, a third of the
         // engine's 30 s stall.
         const val SESSION_CHECK_CUTOFF_MS = 12_000L
+        /** Cap on the OAuth step (session OK → Entitlement), mirroring the desktop core's 15 s. */
+        const val OAUTH_CUTOFF_MS = 15_000L
         const val TRAFFIC_TIMEOUT_MS = 30_000
         const val POLL_MS = 200L
         val listeningLine = Regex("""SOCKS5 proxy listening on""")

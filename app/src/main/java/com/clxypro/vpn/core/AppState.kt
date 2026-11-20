@@ -185,6 +185,12 @@ object FailureText {
         "(the session itself is fine) — retrying; if it keeps failing, " +
         "try another network or Quantum"
 
+    /** The sentence a stalled OAuth step is reported with, everywhere. */
+    const val OAUTH_TIMEOUT =
+        "account server did not answer the sign-in token request in time " +
+        "(the session itself is fine) — retrying; if it keeps failing, " +
+        "try another network or Quantum"
+
     /** True for a stalled session check, raw or already translated. */
     fun isSessionTimeout(detail: String): Boolean =
         detail == SESSION_TIMEOUT ||
@@ -192,6 +198,20 @@ object FailureText {
          (detail.contains("deadline exceeded", ignoreCase = true) ||
           detail.contains("timeout exceeded", ignoreCase = true)))
 
-    fun translate(detail: String): String =
-        if (isSessionTimeout(detail)) SESSION_TIMEOUT else detail
+    /** True for a stalled OAuth step, raw or already translated. */
+    fun isOAuthTimeout(detail: String): Boolean =
+        detail == OAUTH_TIMEOUT ||
+        ((detail.contains("/oauth/authorization") || detail.contains("request to /token")) &&
+         (detail.contains("deadline exceeded", ignoreCase = true) ||
+          detail.contains("timeout exceeded", ignoreCase = true)))
+
+    /** True for either stalled account-server step — both clear at random, so both retry fast. */
+    fun isStallTimeout(detail: String): Boolean =
+        isSessionTimeout(detail) || isOAuthTimeout(detail)
+
+    fun translate(detail: String): String = when {
+        isSessionTimeout(detail) -> SESSION_TIMEOUT
+        isOAuthTimeout(detail) -> OAUTH_TIMEOUT
+        else -> detail
+    }
 }
