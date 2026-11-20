@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="README.fa.md"><img src="https://img.shields.io/badge/🇮🇷_فارسی-7c5cff?style=for-the-badge" alt="نسخه فارسی"></a>
+  <a href="https://github.com/ClxybyCloner/ClxyPro/blob/main/README.fa.md">🇮🇷 نسخه فارسی</a>
 </p>
 
 <p align="center">

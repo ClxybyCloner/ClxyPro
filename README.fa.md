@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="README.md"><img src="https://img.shields.io/badge/🇬🇧_English-7c5cff?style=for-the-badge" alt="English version"></a>
+  <a href="https://github.com/ClxybyCloner/ClxyPro/blob/main/README.md">🇬🇧 English version</a>
 </p>
 
 <p align="center">
