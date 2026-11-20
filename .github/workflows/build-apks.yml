@@ -51,6 +51,12 @@ jobs:
           chmod +x gradlew tools/build-apks.sh
           GRADLE=./gradlew ./tools/build-apks.sh
 
+      # The README's verify section points at this file.
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.apk > SHA256SUMS.txt
+
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
@@ -62,7 +68,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.apk
+          files: |
+            dist/*.apk
+            dist/SHA256SUMS.txt
           generate_release_notes: true
           fail_on_unmatched_files: true
 
@@ -82,7 +90,9 @@ jobs:
             Built from `${{ github.sha }}` on `${{ github.ref_name }}`.
             These APKs are newer than the newest version tag; numbered
             releases are the version tags.
-          files: dist/*.apk
+          files: |
+            dist/*.apk
+            dist/SHA256SUMS.txt
 
       # overwrite_files only replaces assets with the same name, so an older
       # version's APKs would linger next to the new ones. Drop whatever is not
