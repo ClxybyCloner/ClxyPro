@@ -185,7 +185,6 @@ fun ServersScreen(
             }
             val valid = results.map { it.second }.filter { it > 0 }
             serverPings[""] = valid.minOrNull() ?: 38
-            serverPings["fastest"] = valid.minOrNull() ?: 32
             lastPingSummary = if (valid.isNotEmpty()) {
                 "Tested ${valid.size} of ${allServers.size} locations · ${valid.minOrNull()} ms - ${valid.maxOrNull()} ms"
             } else {
@@ -353,20 +352,10 @@ fun ServersScreen(
                 item {
                     AutoChoiceRow(
                         title = "Recommended Location",
-                        subtitle = "Automatic selection of lowest latency route",
+                        subtitle = "Germany first, then the fastest working route",
                         pingMs = serverPings[""] ?: 38,
                         selected = activePinned.isBlank(),
                         onClick = { onSelectServer("", "Auto") },
-                    )
-                }
-
-                item {
-                    AutoChoiceRow(
-                        title = "Fastest Location",
-                        subtitle = "Connects to the fastest responding node",
-                        pingMs = serverPings["fastest"] ?: 32,
-                        selected = activePinned == "fastest",
-                        onClick = { onSelectServer("fastest", "Fastest") },
                     )
                 }
 

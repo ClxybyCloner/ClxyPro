@@ -32,9 +32,9 @@ private val ZH = mapOf(
     "Firefox" to "CLXY Hyper",
     "Tor" to "Tor",
     "Server" to "服务器",
-    "Auto — fastest working server" to "自动 — 最快的可用服务器",
-    "Auto checks the list and picks the fastest server that works. A chosen server is dialled on its own; if it fails, the connection fails instead of switching to another." to
-        "自动模式会检查列表并选择最快的可用服务器。选定的服务器将单独拨号；若失败，连接会报错而不会切换到其他服务器。",
+    "Auto — Germany first, then the fastest working server" to "自动 — 德国优先，然后是最快的可用服务器",
+    "Auto dials Germany first; if it fails, it tries the fastest working server from the list. A chosen server is dialled on its own; if it fails, the connection fails instead of switching to another." to
+        "自动模式先拨德国；若失败，再尝试列表中最快的可用服务器。选定的服务器将单独拨号；若失败，连接会报错而不会切换到其他服务器。",
     "The relay list comes from the built-in file or the VPN Gate card in Config tools." to
         "中继列表来自内置文件或配置工具中的「VPN Gate SSTP 服务器」卡片。",
     "Refresh & test" to "刷新并测试",

@@ -354,13 +354,13 @@ object Texts {
 
         get() = p(
 
-            "Auto — fastest working server",
+            "Auto — Germany first, then the fastest working server",
 
-            "خودکار — سریع‌ترین سرور سالم",
+            "خودکار — اول آلمان، بعد سریع‌ترین سرور سالم",
 
-            "Авто — самый быстрый рабочий сервер",
+            "Авто — сначала Германия, затем самый быстрый рабочий сервер",
 
-            "Auto: el servidor funcional más rápido"
+            "Auto: Alemania primero, luego el servidor funcional más rápido"
 
         )
 
@@ -370,15 +370,15 @@ object Texts {
 
         get() = p(
 
-            "Auto checks the list and picks the fastest server that works. A chosen server is dialled on its own; if it fails, the connection fails instead of switching to another.",
+            "Auto dials Germany first; if it fails, it tries the fastest working server from the list. A chosen server is dialled on its own; if it fails, the connection fails instead of switching to another.",
 
-            "حالت خودکار فهرست را بررسی می‌کند و سریع‌ترین سرور سالم را برمی‌گزیند. " +
+            "حالت خودکار اول آلمان را می‌گیرد؛ اگر وصل نشد، سریع‌ترین سرور سالم فهرست را امتحان می‌کند. " +
 
                 "سرور انتخاب‌شده به‌تنهایی شماره‌گیری می‌شود؛ اگر وصل نشود، اتصال شکست می‌خورد و سرور دیگری امتحان نمی‌شود.",
 
-            "Авто проверяет список и выбирает самый быстрый рабочий сервер. Выбранный сервер используется один: если он не сработает, соединение завершится ошибкой, а не переключением на другой.",
+            "Авто сначала подключается к Германии; если не сработает, пробует самый быстрый рабочий сервер из списка. Выбранный сервер используется один: если он не сработает, соединение завершится ошибкой, а не переключением на другой.",
 
-            "Auto revisa la lista y elige el servidor funcional más rápido. El servidor elegido se marca por sí solo; si falla, la conexión falla en lugar de cambiar a otro."
+            "Auto marca Alemania primero; si falla, prueba el servidor funcional más rápido de la lista. El servidor elegido se marca por sí solo; si falla, la conexión falla en lugar de cambiar a otro."
 
         )
 

@@ -225,7 +225,7 @@ fun HomeScreen(
         // Never take(2) of the exit NAME: "CatchAll Anycast / USA"
         // became "CA" and drew the Canada flag for a USA server.
         if (state.exit.isNotEmpty()) inferCountryCode(state.exit, "")
-        else if (pinned.isNotBlank() && pinned != "fastest") inferCountryCode(pinnedLabel, pinned)
+        else if (pinned.isNotBlank()) inferCountryCode(pinnedLabel, pinned)
         else "REC"
     }
     val destName = if (isQuantum) "CLXY Anycast Mesh" else {

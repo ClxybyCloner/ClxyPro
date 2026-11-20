@@ -24,6 +24,10 @@ class App : Application() {
         // image build date, and the engines are handed this bundle instead.
         CaBundle.prepare(this)
         Prefs.init(this)
+        // 2026-11-21: the "Fastest" pseudo-server is gone (its latency pick
+        // landed on dead edges); a stored "fastest" pin becomes Auto, which
+        // now dials Germany first.
+        if (Prefs.server("firefox") == "fastest") Prefs.setServer("firefox", "", "")
         // Firefox (CLXY Hyper) stays the default engine; Aether (CLXY Quantum) follows.
         CoreRegistry.register(FirefoxCore())
         CoreRegistry.register(AetherCore())

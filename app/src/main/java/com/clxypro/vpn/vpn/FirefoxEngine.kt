@@ -53,6 +53,11 @@ class FirefoxEngine(private val context: Context) {
     var socksPortUsed: Int = Prefs.socksPort
         private set
 
+    /** Germany by country code, falling back to the country name. */
+    private fun isGermany(server: Server): Boolean =
+        server.country.equals("de", ignoreCase = true) ||
+            server.countryName.equals("Germany", ignoreCase = true)
+
     /**
      * Blocking. Returns null on success, otherwise a human-readable error.
      * [onStage] receives the same stage names the other cores report, so the
@@ -79,9 +84,16 @@ class FirefoxEngine(private val context: Context) {
             if (servers.isEmpty()) return context.getString(R.string.error_no_exits)
 
             onStage("checking servers")
-            ranked = ServerList
-                .rank(ServerList.probe(servers) { stopping }, Store.lastServer(context))
-                .take(MAX_CANDIDATES)
+            // Default exit is Germany (2026-11-21: the engine's latency-fastest
+            // pick landed on a dead edge twice, while Germany connects in ~2 s).
+            // Germany goes first; the ranked list stays behind it as fallback.
+            val ordered = ServerList.rank(ServerList.probe(servers) { stopping }, Store.lastServer(context))
+            val germanAt = ordered.indexOfFirst { isGermany(it.server) }
+            val germanyFirst = if (germanAt > 0) {
+                Logs.add("vpn", "default exit Germany first")
+                listOf(ordered[germanAt]) + ordered.filterIndexed { i, _ -> i != germanAt }
+            } else ordered
+            ranked = germanyFirst.take(MAX_CANDIDATES)
             if (ranked.isEmpty()) return context.getString(R.string.error_no_exits)
         }
 
