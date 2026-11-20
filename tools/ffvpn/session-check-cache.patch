@@ -1,0 +1,118 @@
+--- a/main.go
++++ b/main.go
+@@ -10,6 +10,8 @@
+ 
+ import (
+ 	"context"
++	"crypto/sha256"
++	"encoding/hex"
+ 	"encoding/json"
+ 	"errors"
+ 	"flag"
+@@ -18,6 +20,7 @@
+ 	"net"
+ 	"os"
+ 	"os/signal"
++	"strconv"
+ 	"strings"
+ 	"syscall"
+ 	"time"
+@@ -146,7 +149,7 @@
+ 		return err
+ 	}
+ 	authClient := fxa.NewClient(opts.authServer)
+-	uid, err := authClient.SessionStatus(session)
++	uid, cached, err := sessionUID(authClient, session, opts)
+ 	if err != nil {
+ 		return fmt.Errorf("session token rejected by auth server: %w", err)
+ 	}
+@@ -154,7 +157,11 @@
+ 	if len(uidPrefix) > 8 {
+ 		uidPrefix = uidPrefix[:8]
+ 	}
+-	log.Printf("FxA session OK (uid %s...)", uidPrefix)
++	if cached {
++		log.Printf("FxA session OK (cached uid %s...)", uidPrefix)
++	} else {
++		log.Printf("FxA session OK (uid %s...)", uidPrefix)
++	}
+ 
+ 	if opts.sessionTokenFile != "" {
+ 		// A session token is the account key, so it is written 0600 and only
+@@ -517,6 +524,76 @@
+ 	return &fxa.Session{Token: token, Verified: true}, nil
+ }
+ 
++// sessionVerifiedTTL is how long a /session/status answer is trusted without
++// asking the auth server again. The session token itself lives for weeks; a
++// revoked session still fails the OAuth step right after, so a stale cache
++// cannot silently connect a dead account — it only skips a redundant check.
++const sessionVerifiedTTL = 24 * time.Hour
++
++// sessionUID returns the account uid for the session, asking the auth server
++// only when no fresh verification is cached. The uid feeds nothing but the
++// log line, so a cached answer is as good as a live one; the OAuth token
++// fetch that follows still proves the session against the server on every
++// connect. The cache lives next to the token file and is bound to the token
++// itself, so a new sign-in re-validates.
++func sessionUID(authClient *fxa.Client, session *fxa.Session, opts *options) (string, bool, error) {
++	if opts.sessionTokenFile != "" {
++		if uid, ok := readVerifiedSession(opts.sessionTokenFile, session.Token); ok {
++			return uid, true, nil
++		}
++	}
++	uid, err := authClient.SessionStatus(session)
++	if err != nil {
++		// A failed check must not leave a trusted answer behind.
++		if opts.sessionTokenFile != "" {
++			os.Remove(verifiedSessionFile(opts.sessionTokenFile))
++		}
++		return "", false, err
++	}
++	if opts.sessionTokenFile != "" {
++		writeVerifiedSession(opts.sessionTokenFile, session.Token, uid)
++	}
++	return uid, false, nil
++}
++
++func verifiedSessionFile(tokenFile string) string { return tokenFile + ".verified" }
++
++// readVerifiedSession returns the cached uid when the sidecar file holds a
++// verification for this exact token that is younger than sessionVerifiedTTL.
++func readVerifiedSession(tokenFile, token string) (string, bool) {
++	data, err := os.ReadFile(verifiedSessionFile(tokenFile))
++	if err != nil {
++		return "", false
++	}
++	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
++	if len(lines) != 3 {
++		return "", false
++	}
++	sum := sha256.Sum256([]byte(token))
++	if lines[0] != hex.EncodeToString(sum[:]) {
++		return "", false
++	}
++	verifiedUnix, err := strconv.ParseInt(strings.TrimSpace(lines[2]), 10, 64)
++	if err != nil || time.Since(time.Unix(verifiedUnix, 0)) > sessionVerifiedTTL {
++		return "", false
++	}
++	uid := strings.TrimSpace(lines[1])
++	if uid == "" {
++		return "", false
++	}
++	return uid, true
++}
++
++// writeVerifiedSession records a fresh verification. A write failure is
++// ignored: the next connect simply checks again.
++func writeVerifiedSession(tokenFile, token, uid string) {
++	sum := sha256.Sum256([]byte(token))
++	body := hex.EncodeToString(sum[:]) + "\n" + uid + "\n" +
++		strconv.FormatInt(time.Now().Unix(), 10) + "\n"
++	// The hash binds the file to the account key; keep it 0600 like the token.
++	_ = os.WriteFile(verifiedSessionFile(tokenFile), []byte(body), 0o600)
++}
++
+ func interactiveLogin(opts *options) (*fxa.Session, error) {
+ 	password := opts.password
+ 	if password == "" {

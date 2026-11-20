@@ -75,18 +75,27 @@ printf 'Copying %s to %s\n' "$SRC" "$SCRATCH"
 #     longer than that and every request dies with "TLS handshake timeout". The
 #     netx.Client(timeout, jar) it adds also carries the auth and OAuth
 #     clients' challenge cookie jars.
+#   session-check-cache.patch - /session/status is pure validation (its uid feeds
+#     nothing but the log line) yet upstream calls it on every connect, and on a
+#     filtered path the call stalls for the whole 30 s client timeout, so a
+#     connect took 2 minutes. A fresh verification (uid + timestamp, bound to
+#     the token's hash, 0600) is cached next to the token file for 24 h and the
+#     call is skipped while it is fresh; a new token or a stale cache
+#     re-validates, and a failed check deletes the cache. The OAuth fetch that
+#     follows still proves the session live on every connect.
 #
 # Retired: ua-identity.patch. Upstream now gets past the edge's HTTP 406 by
 # solving the Fastly anti-bot challenge itself (internal/fxa/challenge.go)
 # with a browser User-Agent, which is what the app-identity spoof used to
 # paper over.
-for patch in fxa-v2-salt session-token-file serverlist-json captcha-prompt handshake-timeout; do
+for patch in fxa-v2-salt session-token-file serverlist-json captcha-prompt handshake-timeout session-check-cache; do
     case $patch in
         fxa-v2-salt) marker='clientSalt), 650000'; file=internal/fxa/crypto.go ;;
         session-token-file) marker=readSessionFile; file=main.go ;;
         serverlist-json) marker=FFVPN_SERVER_JSON; file=main.go ;;
         captcha-prompt) marker=SetCaptchaSolver; file=internal/fxa/challenge.go ;;
         handshake-timeout) marker=netx.Client; file=internal/fxa/client.go ;;
+        session-check-cache) marker=sessionUID; file=main.go ;;
     esac
     if ! grep -q "$marker" "$SCRATCH/$file"; then
         echo "Applying $patch.patch"
