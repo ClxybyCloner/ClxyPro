@@ -123,6 +123,9 @@ object AppState {
 object RetryLadder {
     const val MAX_ATTEMPTS = 6
 
+    /** A stalled session check clears at random, so retry it quickly instead of backing off. */
+    const val SESSION_STALL_MS = 2_000L
+
     fun delayMillis(failures: Int): Long = when {
         failures <= 3 -> 2_000L
         else -> (15_000L shl (failures - 4)).coerceAtMost(300_000L)
@@ -176,15 +179,19 @@ object StatusText {
  * the retry log and the failure notification show is translated.
  */
 object FailureText {
-    fun translate(detail: String): String {
-        if (detail.contains("/session/status") &&
-            (detail.contains("deadline exceeded", ignoreCase = true) ||
-             detail.contains("timeout exceeded", ignoreCase = true))
-        ) {
-            return "account server did not answer the session check in time " +
-                "(the session itself is fine) — retrying; if it keeps failing, " +
-                "try another network or Quantum"
-        }
-        return detail
-    }
+    /** The sentence a stalled session check is reported with, everywhere. */
+    const val SESSION_TIMEOUT =
+        "account server did not answer the session check in time " +
+        "(the session itself is fine) — retrying; if it keeps failing, " +
+        "try another network or Quantum"
+
+    /** True for a stalled session check, raw or already translated. */
+    fun isSessionTimeout(detail: String): Boolean =
+        detail == SESSION_TIMEOUT ||
+        (detail.contains("/session/status") &&
+         (detail.contains("deadline exceeded", ignoreCase = true) ||
+          detail.contains("timeout exceeded", ignoreCase = true)))
+
+    fun translate(detail: String): String =
+        if (isSessionTimeout(detail)) SESSION_TIMEOUT else detail
 }

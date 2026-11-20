@@ -6,6 +6,7 @@ import android.util.Log
 import com.clxypro.vpn.R
 import com.clxypro.vpn.core.CaBundle
 import com.clxypro.vpn.core.EngineProc
+import com.clxypro.vpn.core.FailureText
 import com.clxypro.vpn.core.LocalPorts
 import com.clxypro.vpn.core.Prefs
 import java.io.File
@@ -31,6 +32,15 @@ class FirefoxEngine(private val context: Context) {
 
     @Volatile
     private var lastLine = ""
+
+    /**
+     * Elapsed time when the engine started its /session/status check, 0 while
+     * it is not waiting on one. The check either answers in ~2 s or stalls
+     * for the engine's whole 30 s timeout, so the poll loop cuts a stalled
+     * check short instead of burning the full 30 s on every attempt.
+     */
+    @Volatile
+    private var sessionCheckAt = 0L
 
     /** What the engine dialled last; the UI shows its country and latency. */
     @Volatile
@@ -99,6 +109,7 @@ class FirefoxEngine(private val context: Context) {
         destroyChild()
         listening = false
         lastLine = ""
+        sessionCheckAt = 0L
 
         // Never bind a port that is already taken: the engine would exit(1)
         // and every retry would fail the same way. The bridge, watchdog and
@@ -140,6 +151,18 @@ class FirefoxEngine(private val context: Context) {
                 // tell them apart.
                 return "engine exited ($code) ${lastLine.take(400)}".trim()
             }
+            // The session check either answers in ~2 s or stalls for the
+            // engine's whole 30 s timeout (seen 2026-11-20: three 30 s
+            // stalls, then a 2 s pass). Cut a stalled check short at 12 s
+            // and let the retry ladder try again — a 2-minute connect
+            // becomes ~40 s. Once "session OK" appears the cutoff is off.
+            val checkAt = sessionCheckAt
+            if (checkAt > 0L &&
+                SystemClock.elapsedRealtime() - checkAt >= SESSION_CHECK_CUTOFF_MS
+            ) {
+                destroyChild()
+                return FailureText.SESSION_TIMEOUT
+            }
             if (SystemClock.elapsedRealtime() - startedAt >= PER_SERVER_MS) {
                 destroyChild()
                 return context.getString(R.string.error_no_proxy, PER_SERVER_MS / 1000)
@@ -161,6 +184,10 @@ class FirefoxEngine(private val context: Context) {
                 while (true) {
                     val line = runCatching { reader.readLine() }.getOrNull() ?: break
                     lastLine = line.trim()
+                    if (lastLine.contains("Using cached session token")) {
+                        sessionCheckAt = SystemClock.elapsedRealtime()
+                    }
+                    if (lastLine.contains("session OK")) sessionCheckAt = 0L
                     if (listeningLine.containsMatchIn(lastLine)) listening = true
                     if (quotaLine.containsMatchIn(lastLine)) {
                         Store.setQuota(context, lastLine.substringAfter("Bandwidth:").trim())
@@ -197,6 +224,9 @@ class FirefoxEngine(private val context: Context) {
         // The engine dials an exit for up to 30 s and its account calls can time
         // out twice before that, so a short window drops exits that still work.
         const val PER_SERVER_MS = 60_000L
+        // Six times the ~2 s a healthy session check takes, a third of the
+        // engine's 30 s stall.
+        const val SESSION_CHECK_CUTOFF_MS = 12_000L
         const val TRAFFIC_TIMEOUT_MS = 30_000
         const val POLL_MS = 200L
         val listeningLine = Regex("""SOCKS5 proxy listening on""")

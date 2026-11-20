@@ -257,7 +257,10 @@ class ProxyService : Service() {
         }
         val failures = attempt + 1
         attempt = failures
-        val delay = RetryLadder.delayMillis(failures)
+        // A stalled session check clears at random: retry it quickly instead
+        // of backing off, or the long pauses stretch a 2-minute connect further.
+        val delay = if (FailureText.isSessionTimeout(shown)) RetryLadder.SESSION_STALL_MS
+            else RetryLadder.delayMillis(failures)
         AppState.log("attempt $failures failed ($shown), retrying in ${delay}ms")
         val retryGeneration = generation.incrementAndGet()
         stopping = true
