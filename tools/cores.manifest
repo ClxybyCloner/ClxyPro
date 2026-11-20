@@ -3,7 +3,7 @@
 # Regenerate after replacing a core: ./tools/build-apks.sh --update-manifest
 91c984e44c0084592c82b3727076ce263248d293f3e7e2f20f01d1a98f2191dc  armeabi-v7a/libaether.so
 bb3d5ddd8eacf7420853f6aab30c2627aa6e9ccf338f8008c5b9138d682bef39  armeabi-v7a/libc2tun.so
-63a0ec9b3434ee37e6d28a7114952e204b4a43c0bc41a3581cf0123741d718e9  armeabi-v7a/libffvpn.so
+65885996c9b498c9d00a0829c377e1ddad57aa9f6e1314c7681feffe1b4d9180  armeabi-v7a/libffvpn.so
 1c36661a7b06d79f9b5caeaefc68a50d33d47bfe437ac082e699498a5b326c13  arm64-v8a/libaether.so
 5ae5b5317b40be4b966d9156ccc5e8be31327f51cef8ae0fc33d645e2ec6fc9f  arm64-v8a/libc2tun.so
-4dba4a0fc95e2e5ced949e025fb9058b9e914990b12fbfb7764afa5f6cb0a7e6  arm64-v8a/libffvpn.so
+efe5c798a5d91fe9baa713c5d35dd4f2d8116d7b9c71d38b7d5304bbe3c82966  arm64-v8a/libffvpn.so
