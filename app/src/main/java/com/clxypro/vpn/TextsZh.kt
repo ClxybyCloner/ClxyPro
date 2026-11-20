@@ -130,7 +130,7 @@ private val ZH = mapOf(
     "Turns on automatically when connected." to "连接后会自动开启。",
     "Preparing the share…" to "正在准备共享…",
     "Alerts" to "提醒",
-    "Sound when connected" to "连接时播放声音",
+    "Vibrate when connected" to "连接时振动",
     "A short chime plays the moment the tunnel comes up, even if the ringer is muted." to
         "隧道建立时会播放一段短提示音，即使手机已静音。",
     "Retry automatically" to "自动重试",

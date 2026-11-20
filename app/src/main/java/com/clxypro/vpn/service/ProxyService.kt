@@ -315,7 +315,7 @@ class ProxyService : Service() {
                 Notifications.NOTIFICATION_ID,
                 Notifications.build(this, Texts.appName, Texts.notificationProxy)
             )
-            ConnectSound.ping(this)
+            ConnectFeedback.signal(this)
         }
         if (Prefs.shareLan) {
             LanShare.start(coreProxy)

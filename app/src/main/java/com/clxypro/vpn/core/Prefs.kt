@@ -21,7 +21,8 @@ object Prefs {
     private const val KEY_MODE = "mode"
     private const val KEY_CORE = "core"
     private const val KEY_SHARE_LAN = "share_lan"
-    private const val KEY_CONNECT_SOUND = "connect_sound"
+    // The stored key keeps its old name so existing installs keep their choice.
+    private const val KEY_CONNECT_VIBRATION = "connect_sound"
     private const val KEY_AUTO_RETRY = "auto_retry"
     private const val KEY_TOR_BRIDGES = "tor_bridges"
     private const val KEY_PSIPHON_CONDUIT = "psiphon_conduit"
@@ -101,10 +102,10 @@ object Prefs {
             prefs().edit().putBoolean("quantum_unlocked", value).apply()
         }
 
-    var connectSound: Boolean
-        get() = prefs().getBoolean(KEY_CONNECT_SOUND, true)
+    var connectVibration: Boolean
+        get() = prefs().getBoolean(KEY_CONNECT_VIBRATION, true)
         set(value) {
-            prefs().edit().putBoolean(KEY_CONNECT_SOUND, value).apply()
+            prefs().edit().putBoolean(KEY_CONNECT_VIBRATION, value).apply()
         }
 
     var autoRetry: Boolean

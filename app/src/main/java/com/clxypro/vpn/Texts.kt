@@ -1564,21 +1564,21 @@ object Texts {
 
         get() = p("Alerts", "اعلان‌ها", "Уведомления", "Avisos")
 
-    val soundSwitch: String
+    val vibrateSwitch: String
 
-        get() = p("Sound when connected", "پخش صدا هنگام برقراری اتصال", "Звук при подключении", "Sonar al conectar")
+        get() = p("Vibrate when connected", "لرزش هنگام برقراری اتصال", "Вибрация при подключении", "Vibrar al conectar")
 
-    val soundHint: String
+    val vibrateHint: String
 
         get() = p(
 
-            "A short chime plays the moment the tunnel comes up, even if the ringer is muted.",
+            "The phone vibrates briefly the moment the tunnel comes up.",
 
-            "همان لحظه‌ای که اتصال برقرار می‌شود یک صدای کوتاه پخش می‌شود؛ حتی اگر گوشی بی‌صدا باشد.",
+            "همان لحظه‌ای که اتصال برقرار می‌شود گوشی به‌اختصار می‌لرزد.",
 
-            "Короткий сигнал звучит в момент подключения — даже если телефон без звука.",
+            "Телефон коротко вибрирует в момент подключения.",
 
-            "Suena un tono corto en cuanto el túnel se levanta, aunque el teléfono esté en silencio."
+            "El teléfono vibra brevemente en cuanto el túnel se levanta."
 
         )
 

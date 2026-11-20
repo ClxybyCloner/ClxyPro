@@ -324,7 +324,7 @@ class TunnelVpnService : VpnService() {
                     Notifications.NOTIFICATION_ID,
                     Notifications.build(this, Texts.appName, Texts.notificationVpn)
                 )
-                ConnectSound.ping(this)
+                ConnectFeedback.signal(this)
                 // Watch the port the core actually bound, not the preferred
                 // one (see ProxyService).
                 val corePort = coreProxy.substringAfterLast(':').toIntOrNull() ?: Prefs.socksPort

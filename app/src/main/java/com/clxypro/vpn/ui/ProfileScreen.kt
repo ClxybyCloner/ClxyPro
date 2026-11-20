@@ -396,7 +396,7 @@ fun ProfileScreen(
 fun GeneralSettingsDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
     var shareLan by remember { mutableStateOf(Prefs.shareLan) }
-    var connectSound by remember { mutableStateOf(Prefs.connectSound) }
+    var connectVibration by remember { mutableStateOf(Prefs.connectVibration) }
     var autoRetry by remember { mutableStateOf(Prefs.autoRetry) }
     var speedNotification by remember { mutableStateOf(Prefs.showSpeedInNotification) }
     var currentLang by remember { mutableStateOf(AppLocale.current(context)) }
@@ -426,12 +426,12 @@ fun GeneralSettingsDialog(onDismiss: () -> Unit) {
                     )
 
                     SettingSwitchRow(
-                        title = "Connect & disconnect sound",
-                        subtitle = "Plays an audio feedback tone when VPN connection state changes",
-                        checked = connectSound,
+                        title = "Vibrate on connect",
+                        subtitle = "Vibrates briefly when the VPN connects",
+                        checked = connectVibration,
                         onCheckedChange = {
-                            connectSound = it
-                            Prefs.connectSound = it
+                            connectVibration = it
+                            Prefs.connectVibration = it
                         },
                     )
 
