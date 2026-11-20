@@ -14,6 +14,7 @@ import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.CoreRegistry
 import com.clxypro.vpn.core.Diagnostics
 import com.clxypro.vpn.core.EngineHandoff
+import com.clxypro.vpn.core.FailureText
 import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.core.Reachability
@@ -235,11 +236,14 @@ class ProxyService : Service() {
             return
         }
         if (stale(gen) || stopping || AppState.state.disconnecting) return
+        // The engine's own sentence for a stalled session check claims the
+        // token was rejected; say what actually happened instead.
+        val shown = FailureText.translate(detail)
         val selected = core
         val blocked = selected?.blockedOnUser == true
         if (selected == null || wantsClosed.get() || attempt >= RetryLadder.MAX_ATTEMPTS ||
             !Prefs.autoRetry || blocked) {
-            teardown(code, detail)
+            teardown(code, shown)
             val stoppedGeneration = generation.get()
             if (!blocked) workers.execute {
                 val cause = runCatching { Diagnostics.explain() }.getOrNull()
@@ -254,7 +258,7 @@ class ProxyService : Service() {
         val failures = attempt + 1
         attempt = failures
         val delay = RetryLadder.delayMillis(failures)
-        AppState.log("attempt $failures failed ($detail), retrying in ${delay}ms")
+        AppState.log("attempt $failures failed ($shown), retrying in ${delay}ms")
         val retryGeneration = generation.incrementAndGet()
         stopping = true
         ExitProbe.cancel()

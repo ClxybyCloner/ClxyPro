@@ -18,6 +18,7 @@ import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.CoreRegistry
 import com.clxypro.vpn.core.Diagnostics
 import com.clxypro.vpn.core.EngineHandoff
+import com.clxypro.vpn.core.FailureText
 import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.core.Reachability
@@ -423,6 +424,9 @@ class TunnelVpnService : VpnService() {
             return
         }
         if (stale(gen) || stopping) return
+        // The engine's own sentence for a stalled session check claims the
+        // token was rejected; say what actually happened instead.
+        val shown = FailureText.translate(detail)
         val selected = core
         // A timeout already means the core had its full patience window; the
         // ladder is for attempts that gave up on their own.
@@ -431,10 +435,10 @@ class TunnelVpnService : VpnService() {
             attempt < RetryLadder.MAX_ATTEMPTS &&
             code != StatusText.TIMEOUT && Prefs.autoRetry && !blocked
         if (retryable) {
-            retry(code, detail, selected!!)
+            retry(code, shown, selected!!)
             return
         }
-        teardown(code, detail, "vpn failed: $detail")
+        teardown(code, shown, "vpn failed: $shown")
         // Only after the interface is gone do the probes see the real network.
         // They have nothing to say about a core waiting for the user to sign in.
         if (!blocked) workers.execute { explainFailure() }

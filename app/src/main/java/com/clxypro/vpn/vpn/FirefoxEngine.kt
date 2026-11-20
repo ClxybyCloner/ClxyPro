@@ -134,7 +134,11 @@ class FirefoxEngine(private val context: Context) {
             }
             if (!process.isAlive) {
                 val code = runCatching { process.exitValue() }.getOrNull()
-                return "engine exited ($code) ${lastLine.take(140)}".trim()
+                // Wide enough for the tail that tells a timeout from a real
+                // rejection ("context deadline exceeded" vs "401") — at 140
+                // chars the line was cut mid-URL and FailureText could not
+                // tell them apart.
+                return "engine exited ($code) ${lastLine.take(400)}".trim()
             }
             if (SystemClock.elapsedRealtime() - startedAt >= PER_SERVER_MS) {
                 destroyChild()

@@ -163,3 +163,28 @@ object StatusText {
         else -> Texts.status(code)
     }
 }
+
+/**
+ * The engine calls every /session/status failure "session token rejected",
+ * including plain timeouts — and a timeout is not a rejection: the token is
+ * fine, the account server just did not answer in time (seen 2026-11-20:
+ * three 30s timeouts, then the same token passed in 2s). Translate that
+ * signature into the truth, so nobody signs out over a stalled request —
+ * signing out would force a re-login through the same flaky endpoint.
+ * A real rejection (401/unauthorized, no timeout words) passes through
+ * untouched. The raw engine line stays in the log as-is; only the sentence
+ * the retry log and the failure notification show is translated.
+ */
+object FailureText {
+    fun translate(detail: String): String {
+        if (detail.contains("/session/status") &&
+            (detail.contains("deadline exceeded", ignoreCase = true) ||
+             detail.contains("timeout exceeded", ignoreCase = true))
+        ) {
+            return "account server did not answer the session check in time " +
+                "(the session itself is fine) — retrying; if it keeps failing, " +
+                "try another network or Quantum"
+        }
+        return detail
+    }
+}
