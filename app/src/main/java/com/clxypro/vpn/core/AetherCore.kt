@@ -19,15 +19,6 @@ class AetherCore : VpnCore {
     override val id = "aether"
     override val proxyAddress get() = "$LOOPBACK:$socksPortUsed"
 
-    /**
-     * Single address only: the tunnel bridge answers DNS for 9.9.9.9 from its
-     * mapped-DNS cache (see writeTunnelConfig). Advertising the full default
-     * list would send queries for the other servers down the tunnel as UDP,
-     * which the SOCKS5 proxy does not carry — each lookup would stall on the
-     * UDP timeout before falling back to TCP.
-     */
-    override val vpnDnsServers: List<String> get() = listOf("9.9.9.9")
-
     /** The SOCKS port the engine actually bound (1080 unless it was busy). */
     @Volatile
     private var socksPortUsed: Int = Prefs.socksPort
@@ -290,7 +281,6 @@ class AetherCore : VpnCore {
         "--scan", "balanced"
     )
 
-    /** hev-socks5-tunnel config; DNS is answered from the bridge's mapped cache. */
     private fun writeTunnelConfig(): File {
         val file = File(workDir, TUNNEL_FILE)
         file.writeText(
@@ -304,12 +294,6 @@ class AetherCore : VpnCore {
               address: $LOOPBACK
               port: $socksPortUsed
               udp: 'udp'
-            mapdns:
-              address: 9.9.9.9
-              port: 53
-              network: 100.64.0.0
-              netmask: 255.192.0.0
-              cache-size: 10000
             misc:
               task-stack-size: 32768
               log-level: warn
