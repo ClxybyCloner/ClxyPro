@@ -266,6 +266,7 @@ class ProxyService : Service() {
         stopping = true
         ExitProbe.cancel()
         TunnelWatchdog.stop()
+        Notifications.SpeedUpdater.stop()
         LanShare.stop()
         ProxyFront.stop()
         AppState.update {
@@ -322,6 +323,7 @@ class ProxyService : Service() {
                 Notifications.NOTIFICATION_ID,
                 Notifications.build(this, Texts.appName, Texts.notificationProxy)
             )
+            Notifications.SpeedUpdater.start(this, Texts.notificationProxy)
             ConnectFeedback.signal(this)
         }
         if (Prefs.shareLan) {
@@ -357,6 +359,7 @@ class ProxyService : Service() {
         stopping = true
         ExitProbe.cancel()
         TunnelWatchdog.stop()
+        Notifications.SpeedUpdater.stop()
         LanShare.stop()
         ProxyFront.stop()
         AppState.update {
@@ -402,6 +405,7 @@ class ProxyService : Service() {
         LanShare.stop()
         ProxyFront.stop()
         TunnelWatchdog.stop()
+        Notifications.SpeedUpdater.stop()
         runCatching { core?.setStatusListener(null) }
         // Never join the engine on the main thread: a start stuck inside it makes
         // disconnect block for the engine's whole connect timeout, which here

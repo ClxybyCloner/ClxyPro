@@ -325,6 +325,7 @@ class TunnelVpnService : VpnService() {
                     Notifications.NOTIFICATION_ID,
                     Notifications.build(this, Texts.appName, Texts.notificationVpn)
                 )
+                Notifications.SpeedUpdater.start(this, Texts.notificationVpn)
                 ConnectFeedback.signal(this)
                 // Watch the port the core actually bound, not the preferred
                 // one (see ProxyService).
@@ -383,6 +384,7 @@ class TunnelVpnService : VpnService() {
         ExitProbe.cancel()
         connectLatch?.countDown()
         TunnelWatchdog.stop()
+        Notifications.SpeedUpdater.stop()
         LanShare.stop()
         ProxyFront.stop()
         AppState.update {
@@ -458,6 +460,7 @@ class TunnelVpnService : VpnService() {
         connectLatch?.countDown()
         ExitProbe.cancel()
         TunnelWatchdog.stop()
+        Notifications.SpeedUpdater.stop()
         LanShare.stop()
         ProxyFront.stop()
         AppState.update {
