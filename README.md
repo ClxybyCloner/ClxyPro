@@ -52,27 +52,9 @@ The source code lives in this repository.
 
 ---
 
-## 📱 Android edition — Hyper & Quantum
-
-- **Two engines, one app** — **CLXY Hyper**: Mozilla Firefox HTTP/3 MASQUE direct engine with automatic exit routing (Germany first, then the fastest working route) and a live server list with pings. **CLXY Quantum**: direct anycast mesh with a serial gate, a server list of 16 relays with real TCP pings, and pin-a-relay.
-- **Connects in ~2 seconds** — session and OAuth tokens are cached on first sign-in, so reconnecting skips the slow auth round-trips.
-- **In-app updater** — download and install new builds inside the app; nothing installs without your approval.
-- **Made for Android** — Quick Settings tile to connect from anywhere, per-app split tunneling, and local SOCKS5 (`127.0.0.1:1080`) and HTTP (`127.0.0.1:8080`) proxies for other apps.
-- **Five languages** — English, Persian, Russian, Spanish and Chinese.
-
----
-
-## CLXY core architecture
-
-CLXY pairs a native Android interface with two Go networking cores, one per engine. The cores run as native binaries spawned by the app. The UI manages them through process control and reads connection status from their output, while the cores handle network traffic.
-
-In VPN mode, Android's `VpnService` creates a virtual TUN interface. A user-space TCP/IP stack processes packets and forwards TCP connections to the core's SOCKS5 proxy. The built-in DNS resolver maps domain names to temporary IP addresses so routing rules can still match domains. These rules choose whether to use the proxy, connect directly, or block a connection. App selection controls which apps use the VPN.
-
-The cores support HTTP/2 CONNECT over TLS and HTTP/3 CONNECT over QUIC for connections to the gateway. They also expose a local SOCKS5 proxy (`127.0.0.1:1080`) and HTTP proxy (`127.0.0.1:8080`) for other apps on the device. The Android VPN path handles TCP and DNS; other UDP traffic is not tunneled.
-
----
-
 ## Advanced VPN Routing
+
+CLXY routes traffic through a multi-layered path — not a single VPN hop:
 
 This architecture combines Xray technology with the Mozilla VPN infrastructure to establish a multi-layered network communication path. Its primary goal is to improve traffic management flexibility, isolate network routes, and provide more precise control over inbound and outbound traffic.
 
@@ -90,6 +72,26 @@ Network Architecture:
 VLESS → Xray Core → Linux Routing → Mozilla VPN → Internet
 
 This architecture is designed to provide a flexible, scalable, and manageable networking infrastructure.
+
+---
+
+## 📱 Android edition — Hyper & Quantum
+
+- **Two engines, one app** — **CLXY Hyper**: the Mozilla VPN egress layer of CLXY's multi-layer routing path, over HTTP/3 MASQUE with automatic exit routing (Germany first, then the fastest working route) and a live server list with pings. **CLXY Quantum**: direct anycast mesh with a serial gate, a server list of 16 relays with real TCP pings, and pin-a-relay.
+- **Connects in ~2 seconds** — session and OAuth tokens are cached on first sign-in, so reconnecting skips the slow auth round-trips.
+- **In-app updater** — download and install new builds inside the app; nothing installs without your approval.
+- **Made for Android** — Quick Settings tile to connect from anywhere, per-app split tunneling, and local SOCKS5 (`127.0.0.1:1080`) and HTTP (`127.0.0.1:8080`) proxies for other apps.
+- **Five languages** — English, Persian, Russian, Spanish and Chinese.
+
+---
+
+## CLXY core architecture
+
+CLXY pairs a native Android interface with two Go networking cores, one per engine. The cores run as native binaries spawned by the app. The UI manages them through process control and reads connection status from their output, while the cores handle network traffic.
+
+In VPN mode, Android's `VpnService` creates a virtual TUN interface. A user-space TCP/IP stack processes packets and forwards TCP connections to the core's SOCKS5 proxy. The built-in DNS resolver maps domain names to temporary IP addresses so routing rules can still match domains. These rules choose whether to use the proxy, connect directly, or block a connection. App selection controls which apps use the VPN.
+
+The cores support HTTP/2 CONNECT over TLS and HTTP/3 CONNECT over QUIC for connections to the gateway. They also expose a local SOCKS5 proxy (`127.0.0.1:1080`) and HTTP proxy (`127.0.0.1:8080`) for other apps on the device. The Android VPN path handles TCP and DNS; other UDP traffic is not tunneled.
 
 ---
 
