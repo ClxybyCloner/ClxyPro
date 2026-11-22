@@ -156,13 +156,13 @@ fun HomeScreen(
     val minSecStr = String.format(Locale.US, "%02d:%02d", mins, secs)
 
     // Real-time Speed telemetry
-    var downRate by remember { mutableStateOf("0,0") }
-    var upRate by remember { mutableStateOf("0,0") }
+    var downRate by remember { mutableStateOf("0") }
+    var upRate by remember { mutableStateOf("0") }
 
     LaunchedEffect(isConnected) {
         if (!isConnected) {
-            downRate = "0,0"
-            upRate = "0,0"
+            downRate = "0"
+            upRate = "0"
             return@LaunchedEffect
         }
         fun sampleRx(): Long {
@@ -192,12 +192,13 @@ fun HomeScreen(
             val rxBytes = (curRx - lastRx).coerceAtLeast(0L)
             val txBytes = (curTx - lastTx).coerceAtLeast(0L)
 
-            // Convert bytes/sec to Megabits/sec (Mbps): (bytes * 8) / 1_000_000
-            val downMbpsVal = (rxBytes * 8f / 1_000_000f) / elapsedSec
-            val upMbpsVal = (txBytes * 8f / 1_000_000f) / elapsedSec
+            // Convert bytes/sec to kilobytes/sec (KB/s): bytes / 1_000.
+            // Whole KB/s — at this scale a decimal is sampling noise.
+            val downKBpsVal = (rxBytes / 1000f) / elapsedSec
+            val upKBpsVal = (txBytes / 1000f) / elapsedSec
 
-            downRate = String.format(Locale.US, "%.1f", downMbpsVal).replace('.', ',')
-            upRate = String.format(Locale.US, "%.1f", upMbpsVal).replace('.', ',')
+            downRate = String.format(Locale.US, "%.0f", downKBpsVal)
+            upRate = String.format(Locale.US, "%.0f", upKBpsVal)
 
             lastRx = curRx
             lastTx = curTx
@@ -465,7 +466,7 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            text = " Mbp/s",
+                            text = " KB/s",
                             color = ClxyColors.TextMuted,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Normal,
@@ -482,7 +483,7 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            text = " Mbp/s",
+                            text = " KB/s",
                             color = ClxyColors.TextMuted,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Normal,

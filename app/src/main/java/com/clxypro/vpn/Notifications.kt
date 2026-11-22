@@ -140,9 +140,9 @@ object Notifications {
                     lastTx = curTx
                     lastTime = now
                     val text = if (Prefs.showSpeedInNotification) {
-                        val down = (rxBytes * 8f / 1_000_000f) / elapsedSec
-                        val up = (txBytes * 8f / 1_000_000f) / elapsedSec
-                        "↓ ${fmt(down)} Mbps ↑ ${fmt(up)} Mbps"
+                        val down = (rxBytes / 1000f) / elapsedSec
+                        val up = (txBytes / 1000f) / elapsedSec
+                        "↓ ${fmt(down)} KB/s ↑ ${fmt(up)} KB/s"
                     } else {
                         baseText
                     }
@@ -175,9 +175,9 @@ object Notifications {
             return if (uid > 0L) uid else 0L
         }
 
-        /** Same format as HomeScreen: one decimal, comma separator. */
-        private fun fmt(mbps: Float): String =
-            String.format(Locale.US, "%.1f", mbps).replace('.', ',')
+        /** Same format as HomeScreen: whole KB/s. */
+        private fun fmt(kbps: Float): String =
+            String.format(Locale.US, "%.0f", kbps)
     }
 
     /**
