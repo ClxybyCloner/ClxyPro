@@ -31,10 +31,10 @@
 
 ## ⬇️ دانلود
 
-**آخرین نسخه: 1.5.22** (۲۱ نوامبر ۲۰۲۶)
+**آخرین نسخه: 1.5.24** (۲۲ نوامبر ۲۰۲۶)
 
-- 📦 [دانلود APK نسخهٔ ARM64](https://github.com/ClxybyCloner/ClxyPro/releases/download/v1.5.22/ClxyPro-1.5.22-arm64-v8a.apk)
-- [مشاهدهٔ هش SHA-256](https://github.com/ClxybyCloner/ClxyPro/releases/download/v1.5.22/SHA256SUMS.txt)
+- 📦 [دانلود APK نسخهٔ ARM64](https://github.com/ClxybyCloner/ClxyPro/releases/download/v1.5.24/ClxyPro-1.5.24-arm64-v8a.apk)
+- [مشاهدهٔ هش SHA-256](https://github.com/ClxybyCloner/ClxyPro/releases/download/v1.5.24/SHA256SUMS.txt)
 - 🗂️ [مشاهده‌ی همه‌ی نسخه‌ها](https://github.com/ClxybyCloner/ClxyPro/releases)
 
 سورس در همین ریپو است.
@@ -113,7 +113,7 @@ CLXY رابط کاربری نیتیو اندروید را با دو هسته‌�
 <div dir="ltr">
 
 ```bash
-sha256sum ClxyPro-1.5.22-arm64-v8a.apk
+sha256sum ClxyPro-1.5.24-arm64-v8a.apk
 ```
 
 </div>
@@ -123,7 +123,7 @@ sha256sum ClxyPro-1.5.22-arm64-v8a.apk
 <div dir="ltr">
 
 ```text
-1c978b58a06c46beeda161fc78877001f2225b73a7d7ff765b0a51a2b96ef140  ClxyPro-1.5.22-arm64-v8a.apk
+02e15a5410d57e652e2ed8b8d13f5a9b2c2f641debcbdc0755c5abd149aefd26  ClxyPro-1.5.24-arm64-v8a.apk
 ```
 
 </div>
@@ -145,7 +145,7 @@ CLXY به‌صورت دوره‌ای بخش **Releases** همین ریپو را 
 | | |
 |---|---|
 | بسته | `com.clxypro.vpn` |
-| نسخه / کد نسخه | `1.5.22` / `29` |
+| نسخه / کد نسخه | `1.5.24` / `31` |
 | معماری | `arm64-v8a` |
 | حداقل اندروید | 8.0 (API 26) |
 | حجم | حدود ۱۳٫۵ مگابایت |
