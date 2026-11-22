@@ -10,10 +10,14 @@ import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.clxypro.vpn.BuildConfig
 import com.clxypro.vpn.Notifications
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -92,6 +96,66 @@ object GithubUpdates {
     /** Records what a check found, so the home screen badge agrees with Settings. */
     fun publish(release: Release) {
         AppState.update { it.copy(update = if (isNewer(release)) release else null) }
+    }
+
+    /**
+     * State of the in-app APK download, held here — not in the update
+     * dialog. The download used to launch in the dialog's own
+     * rememberCoroutineScope, so leaving the page cancelled it and the
+     * partial file was deleted: the user had to start over. It now runs
+     * on this object's app-scoped IO scope and survives the dialog; any
+     * screen observes the same state and sees the live progress or the
+     * finished file on return.
+     */
+    sealed interface DownloadState {
+        val version: String
+        data object Idle : DownloadState {
+            override val version: String = ""
+        }
+        data class Downloading(val progress: Int, override val version: String) : DownloadState
+        data class Done(val file: File, override val version: String) : DownloadState
+        data class Failed(val message: String, override val version: String) : DownloadState
+    }
+
+    private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
+    val downloadState: StateFlow<DownloadState> = _downloadState.asStateFlow()
+
+    /**
+     * Starts the APK download for [release] on the app-scoped scope.
+     * No-op while any download is running, and no-op when this version
+     * is already downloaded — the dialog then just offers Install.
+     */
+    fun startDownload(context: Context, release: Release) {
+        val current = _downloadState.value
+        if (current is DownloadState.Downloading) return
+        if (current is DownloadState.Done && current.version == release.version &&
+            current.file.exists()
+        ) return
+        val appContext = context.applicationContext
+        _downloadState.value = DownloadState.Downloading(-1, release.version)
+        scope.launch {
+            try {
+                val apk = download(appContext, release) { pct ->
+                    _downloadState.value = DownloadState.Downloading(pct, release.version)
+                }
+                _downloadState.value = DownloadState.Done(apk, release.version)
+            } catch (t: CancellationException) {
+                throw t
+            } catch (t: Throwable) {
+                _downloadState.value =
+                    DownloadState.Failed(t.message ?: "Download failed", release.version)
+            }
+        }
+    }
+
+    /**
+     * Clears a finished download state (after a fresh check, or to retry
+     * a failure). A running download is never touched — it keeps going.
+     */
+    fun clearDownload() {
+        if (_downloadState.value !is DownloadState.Downloading) {
+            _downloadState.value = DownloadState.Idle
+        }
     }
 
     /**

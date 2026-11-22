@@ -103,7 +103,6 @@ import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.vpn.LogLine
 import com.clxypro.vpn.vpn.Logs
 import com.clxypro.vpn.vpn.NetInfo
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -1375,18 +1374,39 @@ fun AppUpdateDialog(
     val context = LocalContext.current
     var checking by remember { mutableStateOf(false) }
     var currentUpdate by remember { mutableStateOf<GithubUpdates.Release?>(update) }
-    var downloading by remember { mutableStateOf(false) }
-    var downloadProgress by remember { mutableIntStateOf(-1) }
-    var downloadedApk by remember { mutableStateOf<File?>(null) }
-    var downloadError by remember { mutableStateOf<String?>(null) }
+    // The download lives in GithubUpdates (app scope), so it survives this
+    // dialog; the dialog only observes it. The shared state may belong to
+    // an older release, so only the state for the release shown applies.
+    val downloadState by GithubUpdates.downloadState.collectAsState()
+    val activeDownload = downloadState.takeIf { it.version == currentUpdate?.version }
+    val downloading = activeDownload is GithubUpdates.DownloadState.Downloading
+    val downloadProgress =
+        (activeDownload as? GithubUpdates.DownloadState.Downloading)?.progress ?: -1
+    val downloadedApk = (activeDownload as? GithubUpdates.DownloadState.Done)?.file
+    val downloadError = (activeDownload as? GithubUpdates.DownloadState.Failed)?.message
     var needsInstallPermission by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    // Auto-install when a download finishes while this dialog is open —
+    // the previous behaviour. A download that finished earlier (dialog
+    // reopened) just shows the Install button instead.
+    var prevDownloadState by remember { mutableStateOf<GithubUpdates.DownloadState>(GithubUpdates.DownloadState.Idle) }
+    LaunchedEffect(downloadState) {
+        val prev = prevDownloadState
+        prevDownloadState = downloadState
+        if (prev is GithubUpdates.DownloadState.Downloading &&
+            downloadState is GithubUpdates.DownloadState.Done
+        ) {
+            val apk = (downloadState as GithubUpdates.DownloadState.Done).file
+            if (!GithubUpdates.install(context, apk)) {
+                needsInstallPermission = true
+            }
+        }
+    }
+
     fun resetDownload() {
-        downloadedApk = null
-        downloadError = null
+        GithubUpdates.clearDownload()
         needsInstallPermission = false
-        downloadProgress = -1
     }
 
     fun openReleasePage(release: GithubUpdates.Release) {
@@ -1396,31 +1416,13 @@ fun AppUpdateDialog(
         context.startActivity(browserIntent)
     }
 
-    /** Downloads the APK for this device, then opens the system installer. */
+    /** Starts the APK download for this device; it keeps running if this dialog closes. */
     fun startDownload(release: GithubUpdates.Release) {
         if (release.downloadUrl.isBlank()) {
             openReleasePage(release)
             return
         }
-        scope.launch {
-            downloading = true
-            downloadError = null
-            needsInstallPermission = false
-            downloadProgress = -1
-            try {
-                val apk = GithubUpdates.download(context, release) { pct -> downloadProgress = pct }
-                downloadedApk = apk
-                if (!GithubUpdates.install(context, apk)) {
-                    needsInstallPermission = true
-                }
-            } catch (t: CancellationException) {
-                throw t
-            } catch (t: Throwable) {
-                downloadError = t.message ?: "Download failed"
-            } finally {
-                downloading = false
-            }
-        }
+        GithubUpdates.startDownload(context, release)
     }
 
     /** Installs the downloaded APK; opens the allow-installs setting first when needed. */
@@ -1554,7 +1556,7 @@ fun AppUpdateDialog(
                             }
                             if (downloadError != null) {
                                 Text(
-                                    text = downloadError!!,
+                                    text = downloadError,
                                     color = ClxyColors.RedDisconnectStart,
                                     fontSize = 12.sp,
                                 )
