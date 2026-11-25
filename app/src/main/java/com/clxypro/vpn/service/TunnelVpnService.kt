@@ -23,6 +23,7 @@ import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.core.Reachability
 import com.clxypro.vpn.core.RetryLadder
+import com.clxypro.vpn.core.ServiceWakeLock
 import com.clxypro.vpn.core.StatusText
 import com.clxypro.vpn.core.VpnCore
 import com.clxypro.vpn.vpn.ExitProbe
@@ -90,6 +91,11 @@ class TunnelVpnService : VpnService() {
             Notifications.NOTIFICATION_ID,
             Notifications.build(this, Texts.appName, Texts.notificationConnecting)
         )
+        // Held for the whole session (connect attempts, retry waits, connected):
+        // without it Doze sleeps the CPU, the retry timer never fires and the
+        // engine's network threads freeze, so the tunnel drops and never comes
+        // back on its own. Released in teardown().
+        ServiceWakeLock.acquire(this, WAKE_OWNER)
         val selected = CoreRegistry.get(coreId)
         val excludedApps = Prefs.vpnExcludedApps - packageName
         core = selected
@@ -387,6 +393,7 @@ class TunnelVpnService : VpnService() {
         Notifications.SpeedUpdater.stop()
         LanShare.stop()
         ProxyFront.stop()
+        ServiceWakeLock.release(WAKE_OWNER)
         AppState.update {
             it.copy(
                 running = false,
@@ -510,11 +517,13 @@ class TunnelVpnService : VpnService() {
     override fun onDestroy() {
         destroyed = true
         if (session != null) teardown(StatusText.STOPPED, "", null)
+        ServiceWakeLock.release(WAKE_OWNER)
         super.onDestroy()
     }
 
     companion object {
         private const val TUN_LINK = "/dev/tun"
+        private const val WAKE_OWNER = "vpn"
         private const val ACTION_START = "com.clxypro.vpn.tunnel.START"
         private const val ACTION_STOP = "com.clxypro.vpn.tunnel.STOP"
         private const val EXTRA_CORE = "core"

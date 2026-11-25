@@ -19,6 +19,7 @@ import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.core.Reachability
 import com.clxypro.vpn.core.RetryLadder
+import com.clxypro.vpn.core.ServiceWakeLock
 import com.clxypro.vpn.core.StatusText
 import com.clxypro.vpn.core.VpnCore
 import com.clxypro.vpn.vpn.ExitProbe
@@ -89,6 +90,9 @@ class ProxyService : Service() {
             Notifications.NOTIFICATION_ID,
             Notifications.build(this, Texts.appName, Texts.notificationConnecting)
         )
+        // Same screen-off drop as the VPN service: held for the whole session
+        // (connect attempts, retry waits, connected). Released in teardown().
+        ServiceWakeLock.acquire(this, WAKE_OWNER)
         val selected = CoreRegistry.get(coreId)
         core = selected
         stopping = false
@@ -362,6 +366,7 @@ class ProxyService : Service() {
         Notifications.SpeedUpdater.stop()
         LanShare.stop()
         ProxyFront.stop()
+        ServiceWakeLock.release(WAKE_OWNER)
         AppState.update {
             it.copy(
                 running = false,
@@ -407,6 +412,7 @@ class ProxyService : Service() {
         TunnelWatchdog.stop()
         Notifications.SpeedUpdater.stop()
         runCatching { core?.setStatusListener(null) }
+        ServiceWakeLock.release(WAKE_OWNER)
         // Never join the engine on the main thread: a start stuck inside it makes
         // disconnect block for the engine's whole connect timeout, which here
         // would be an ANR rather than a slow stop.
@@ -417,6 +423,7 @@ class ProxyService : Service() {
     }
 
     companion object {
+        private const val WAKE_OWNER = "proxy"
         private const val ACTION_START = "com.clxypro.vpn.proxy.START"
         private const val ACTION_STOP = "com.clxypro.vpn.proxy.STOP"
         private const val EXTRA_CORE = "core"
