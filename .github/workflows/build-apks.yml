@@ -15,7 +15,11 @@ jobs:
     name: Release APKs
     runs-on: ubuntu-latest
     steps:
+      # Full history + tags: the changelog step diffs against the
+      # previous version tag.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -64,6 +68,30 @@ jobs:
           path: dist/*.apk
           if-no-files-found: error
 
+      # generate_release_notes only emits the compare link when there
+      # are no merged PRs — the update dialog then shows no changes
+      # at all. Build the notes from this version's commit subjects.
+      - name: Build changelog
+        if: startsWith(github.ref, 'refs/tags/')
+        id: changelog
+        run: |
+          tags=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$')
+          prev=$(printf '%s\n' "$tags" | sed -n '2p')
+          if [ -n "$prev" ]; then
+            log=$(git log "$prev..HEAD" --format='- %s')
+            compare="https://github.com/$GITHUB_REPOSITORY/compare/$prev...$GITHUB_REF_NAME"
+          else
+            log=$(git log --format='- %s')
+            compare="https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME"
+          fi
+          {
+            echo 'body<<EOF'
+            echo "$log"
+            echo ''
+            echo "**Full Changelog**: $compare"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
@@ -71,7 +99,7 @@ jobs:
           files: |
             dist/*.apk
             dist/SHA256SUMS.txt
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.body }}
           fail_on_unmatched_files: true
 
       # A branch only ever gets this rolling release, so the APKs under Releases

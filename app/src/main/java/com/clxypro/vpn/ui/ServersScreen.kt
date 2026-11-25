@@ -130,8 +130,10 @@ fun ServersScreen(
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var pingingAll by remember { mutableStateOf(false) }
-    val serverPings = remember { mutableStateMapOf<String, Int>() }
-    var lastPingSummary by remember { mutableStateOf<String?>(null) }
+    // Keyed by engine, like the list itself: a switch drops the other
+    // engine's pings and summary instead of showing them under new rows.
+    val serverPings = remember(state.coreId) { mutableStateMapOf<String, Int>() }
+    var lastPingSummary by remember(state.coreId) { mutableStateOf<String?>(null) }
 
     val isQuantumScreen = state.coreId == "aether"
 
@@ -161,10 +163,15 @@ fun ServersScreen(
 
     // Quantum's list comes from the sub, not the core: refresh it in the
     // background when the screen opens; the cached/bundled list shows meanwhile.
+    // The fetch takes seconds, so capture the engine and re-check it after
+    // the await: a late result must not land on the other engine's list
+    // after a switch (the effect's cancellation alone does not stop a
+    // blocking network read that already returned).
     LaunchedEffect(state.coreId) {
         if (isQuantumScreen) {
+            val coreAtStart = state.coreId
             val fresh = withContext(Dispatchers.IO) { QuantumSub.refresh(context) }
-            if (fresh != null) coreServers = loadServers()
+            if (fresh != null && AppState.state.coreId == coreAtStart) coreServers = loadServers()
         }
     }
 
@@ -185,6 +192,7 @@ fun ServersScreen(
     fun measurePingAll() {
         if (pingingAll) return
         pingingAll = true
+        val coreAtStart = state.coreId
         scope.launch {
             val jobs = allServers.map { srv ->
                 async(Dispatchers.IO) {
@@ -195,6 +203,12 @@ fun ServersScreen(
                 }
             }
             val results = jobs.awaitAll()
+            // The pings took seconds; if the engine changed meanwhile, these
+            // results belong to the other engine's list — drop them.
+            if (AppState.state.coreId != coreAtStart) {
+                pingingAll = false
+                return@launch
+            }
             results.forEach { (key, ms) ->
                 serverPings[key] = ms
             }

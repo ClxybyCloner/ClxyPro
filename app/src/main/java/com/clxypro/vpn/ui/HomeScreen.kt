@@ -235,8 +235,10 @@ fun HomeScreen(
         else "REC"
     }
     val destName = if (isQuantum) {
-        if (state.exit.isNotEmpty()) state.exit
-        else if (quantumPinnedLabel.isNotBlank()) quantumPinnedLabel
+        // Quantum's destination is always the pinned relay: state.exit is
+        // a Hyper-only field (FirefoxCore sets it; AetherCore never does),
+        // so any value there on a Quantum session is a stale Hyper exit.
+        if (quantumPinnedLabel.isNotBlank()) quantumPinnedLabel
         else "Auto Scan"
     } else {
         if (state.exit.isNotEmpty()) state.exit
@@ -244,8 +246,8 @@ fun HomeScreen(
         else "Auto Route · Recommended"
     }
     val destIp = if (isQuantum) {
-        if (state.exitIp.isNotEmpty()) state.exitIp
-        else if (quantumPinned.isNotBlank()) quantumPinned
+        // Same staleness rule as destName: exitIp is Hyper-only.
+        if (quantumPinned.isNotBlank()) quantumPinned
         else "Direct MASQUE Route"
     } else {
         if (state.exitIp.isNotEmpty()) state.exitIp
