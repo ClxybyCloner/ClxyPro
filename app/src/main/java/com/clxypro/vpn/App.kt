@@ -10,6 +10,7 @@ import com.clxypro.vpn.core.FirefoxCore
 import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.LogRetention
 import com.clxypro.vpn.core.NetworkMonitor
+import com.clxypro.vpn.core.OriginCountry
 import com.clxypro.vpn.core.Prefs
 
 class App : Application() {
@@ -37,6 +38,9 @@ class App : Application() {
         }
         restoreSettings()
         NetworkMonitor.start(this)
+        // The "Your Device" flag comes from the public IP, read once here
+        // before any tunnel is up — never from the system locale.
+        OriginCountry.detect()
         GithubUpdates.autoCheck()
     }
 

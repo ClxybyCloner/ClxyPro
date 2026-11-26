@@ -3,7 +3,6 @@
 import android.content.Context
 import android.net.TrafficStats
 import android.os.SystemClock
-import android.telephony.TelephonyManager
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -206,17 +205,10 @@ fun HomeScreen(
         }
     }
 
-    // Origin flag: the device's real country (mobile network → SIM →
-    // device locale). VPN-independent — no IP lookup — so it stays
-    // correct while connected. Was hardcoded "AUTO" (generic globe).
-    val originCode = remember {
-        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
-        val iso = tm?.networkCountryIso?.takeIf { it.length == 2 }
-            ?: tm?.simCountryIso?.takeIf { it.length == 2 }
-            ?: Locale.getDefault().country.takeIf { it.length == 2 }
-            ?: ""
-        iso.uppercase(Locale.US).ifEmpty { "AUTO" }
-    }
+    // Origin flag: the device's real country from its public IP, looked up
+    // once at startup (OriginCountry) — never the system locale, which only
+    // says what language the phone speaks. "AUTO" draws the generic globe.
+    val originCode = state.originCode
 
     // Destination routing
     val pinned = Prefs.server("firefox")

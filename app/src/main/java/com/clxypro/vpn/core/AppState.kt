@@ -49,6 +49,8 @@ object AppState {
         val exitIp: String = "",
         /** Where that address lives, as the echo service names it. */
         val exitPlace: String = "",
+        /** The device's own country from its public IP (OriginCountry); "AUTO" draws the generic globe. */
+        val originCode: String = "AUTO",
         /** A newer release than the installed one, null until a check finds it. */
         val update: GithubUpdates.Release? = null
     )
