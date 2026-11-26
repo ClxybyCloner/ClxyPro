@@ -14,6 +14,7 @@ import android.net.TrafficStats
 import android.os.Build
 import android.os.SystemClock
 import com.clxypro.vpn.core.Prefs
+import com.clxypro.vpn.service.NotificationActionReceiver
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
@@ -51,6 +52,23 @@ object Notifications {
             .setContentText(text)
             .setContentIntent(pending)
             .setOngoing(true)
+
+        // Disconnect straight from the notification shade: the action is
+        // part of build() itself, so it survives the speed updater's
+        // once-a-second rebuilds. The receiver stops whichever service
+        // is running (VPN or proxy).
+        val disconnectIntent = Intent(NotificationActionReceiver.ACTION_DISCONNECT).apply {
+            setPackage(context.packageName)
+        }
+        val disconnectPending = PendingIntent.getBroadcast(
+            context,
+            0,
+            disconnectIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        builder.addAction(
+            Notification.Action.Builder(null, Texts.disconnect, disconnectPending).build()
+        )
 
         squareLogo(context)?.let { builder.setLargeIcon(it) }
 

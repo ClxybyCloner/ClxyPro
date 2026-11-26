@@ -86,6 +86,14 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="VpnService tun2socks tunnel" />
         </service>
+
+        <receiver
+            android:name=".service.NotificationActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.clxypro.vpn.notification.DISCONNECT" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
