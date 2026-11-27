@@ -106,6 +106,15 @@ object Prefs {
             prefs().edit().putBoolean("quantum_unlocked", value).apply()
         }
 
+    /** Hyper unlocked by a valid serial; asked once, on Hyper's first
+     *  connect. Same serials as Quantum, but a separate flag — a Quantum
+     *  unlock does not unlock Hyper. */
+    var hyperUnlocked: Boolean
+        get() = prefs().getBoolean("hyper_unlocked", false)
+        set(value) {
+            prefs().edit().putBoolean("hyper_unlocked", value).apply()
+        }
+
     var connectVibration: Boolean
         get() = prefs().getBoolean(KEY_CONNECT_VIBRATION, true)
         set(value) {

@@ -37,18 +37,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.clxypro.vpn.core.Prefs
 import com.clxypro.vpn.core.QuantumSerial
 import com.clxypro.vpn.ui.theme.ClxyColors
 
 /**
- * First-connect serial prompt, shared by Hyper and Quantum: one serial
- * unlocks both engines on this device. A valid serial unlocks; an invalid
- * one just shows an error and stays on the dialog.
+ * First-connect serial prompt, shared by Hyper and Quantum: both take the
+ * same serials, but each engine asks once on its own first connect. A valid
+ * serial unlocks the engine that asked (via [onValid]); an invalid one just
+ * shows an error and stays on the dialog.
  */
 @Composable
 fun QuantumSerialDialog(
     onDismiss: () -> Unit,
+    onValid: () -> Unit,
     onActivated: () -> Unit,
 ) {
     var code by remember { mutableStateOf("") }
@@ -56,7 +57,7 @@ fun QuantumSerialDialog(
 
     fun submit() {
         if (QuantumSerial.isValid(code)) {
-            Prefs.quantumUnlocked = true
+            onValid()
             onActivated()
         } else {
             invalid = true

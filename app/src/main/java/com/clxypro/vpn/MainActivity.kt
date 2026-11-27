@@ -58,8 +58,12 @@ class MainActivity : ComponentActivity() {
 
     private var pendingConnect = false
 
-    /** Quantum serial prompt; raised by toggle() on first Quantum connect. */
+    /** Serial prompt; raised by toggle() on first connect of either engine. */
     private val serialDialogOpen = mutableStateOf(false)
+
+    /** Which engine the open serial dialog is for: Hyper asks separately
+     *  from Quantum, even though both take the same serials. */
+    private val serialForHyper = mutableStateOf(false)
 
     /** Bumped whenever an auto-connect request arrives (tile tap). */
     private val autoConnectTick = mutableStateOf(0)
@@ -171,6 +175,10 @@ class MainActivity : ComponentActivity() {
                             if (serialDialogOpen.value) {
                                 QuantumSerialDialog(
                                     onDismiss = { serialDialogOpen.value = false },
+                                    onValid = {
+                                        if (serialForHyper.value) Prefs.hyperUnlocked = true
+                                        else Prefs.quantumUnlocked = true
+                                    },
                                     onActivated = {
                                         serialDialogOpen.value = false
                                         toggle { activeTab = MainTab.PROFILE }
@@ -238,10 +246,17 @@ class MainActivity : ComponentActivity() {
             webSignIn.launch(Intent(this, SignInActivity::class.java))
             return
         }
-        // Both engines need the same serial on first connect, after sign-in
-        // for Hyper. Asked once; the unlock is remembered and shared by
-        // Hyper and Quantum — one serial, one unlock.
-        if (!Prefs.quantumUnlocked) {
+        // Each engine asks for the serial once, on its own first connect.
+        // Both take the same serials, but a Quantum unlock does not unlock
+        // Hyper (and vice versa) — so Hyper always asks, even on a device
+        // that already unlocked Quantum.
+        if (coreId == "firefox" && !Prefs.hyperUnlocked) {
+            serialForHyper.value = true
+            serialDialogOpen.value = true
+            return
+        }
+        if (coreId == "aether" && !Prefs.quantumUnlocked) {
+            serialForHyper.value = false
             serialDialogOpen.value = true
             return
         }
