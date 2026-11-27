@@ -24,6 +24,18 @@ class AetherCore : VpnCore {
     @Volatile
     private var socksPortUsed: Int = Prefs.socksPort
 
+    /**
+     * DNS while the Psiphon exit is on: the exit's UDP (udpgw) is dead on the
+     * public network — proven live on 2026-11-27 (TCP through the exit works,
+     * every UDP datagram vanishes) — so the phone's DNS must not go through
+     * it. The tunnel bridge answers DNS itself from its mapped-DNS cache
+     * (see writeTunnelConfig): names get fake IPs from the mapdns network,
+     * and the bridge dials the real name through the SOCKS proxy by TCP.
+     * Plain Quantum keeps the default DNS list, untouched.
+     */
+    override val vpnDnsServers: List<String>
+        get() = if (psiphonExit.isRunning) listOf(MAPDNS_ADDRESS) else VpnCore.DEFAULT_VPN_DNS
+
     @Volatile
     private var context: Context? = null
 
@@ -309,22 +321,37 @@ class AetherCore : VpnCore {
 
     private fun writeTunnelConfig(): File {
         val file = File(workDir, TUNNEL_FILE)
-        file.writeText(
-            """
-            tunnel:
-              mtu: 1500
-              ipv4: 172.19.0.2
-              ipv6: 'fd00::2'
-              icmp: 'reply'
-            socks5:
-              address: $LOOPBACK
-              port: ${if (psiphonExit.isRunning) psiphonExit.exitSocksPort else socksPortUsed}
-              udp: 'udp'
-            misc:
-              task-stack-size: 32768
-              log-level: warn
-            """.trimIndent()
+        val lines = mutableListOf(
+            "tunnel:",
+            "  mtu: 1500",
+            "  ipv4: 172.19.0.2",
+            "  ipv6: 'fd00::2'",
+            "  icmp: 'reply'",
+            "socks5:",
+            "  address: $LOOPBACK",
+            "  port: ${if (psiphonExit.isRunning) psiphonExit.exitSocksPort else socksPortUsed}",
+            "  udp: 'udp'",
         )
+        if (psiphonExit.isRunning) {
+            // Mapped DNS: the bridge itself answers DNS queries for names
+            // with fake IPs from this network (no upstream lookup, no UDP),
+            // and dials the real name through the exit's SOCKS proxy by TCP.
+            // This is what makes DNS work when the exit's own UDP is dead.
+            lines += listOf(
+                "mapdns:",
+                "  address: $MAPDNS_ADDRESS",
+                "  port: 53",
+                "  network: $MAPDNS_NETWORK",
+                "  netmask: $MAPDNS_NETMASK",
+                "  cache-size: $MAPDNS_CACHE_SIZE",
+            )
+        }
+        lines += listOf(
+            "misc:",
+            "  task-stack-size: 32768",
+            "  log-level: warn",
+        )
+        file.writeText(lines.joinToString("\n"))
         return file
     }
 
@@ -349,5 +376,14 @@ class AetherCore : VpnCore {
         const val AUTO_STAGE_MS = 240_000L
         const val PSIPHON_START_TIMEOUT_MS = PsiphonExit.START_TIMEOUT_MS
         val PEER_REGEX = Regex("""(?:\d{1,3}\.){3}\d{1,3}:\d{2,5}""")
+
+        // Mapped-DNS pool for the Psiphon exit (see vpnDnsServers above).
+        // 198.18.0.0/15 is reserved for benchmarking, so these fake IPs never
+        // collide with a real destination. Cache size must fit the netmask
+        // (the bridge rejects max > ~mask: /16 allows 1024).
+        const val MAPDNS_ADDRESS = "198.18.0.1"
+        const val MAPDNS_NETWORK = "198.18.0.0"
+        const val MAPDNS_NETMASK = "255.255.0.0"
+        const val MAPDNS_CACHE_SIZE = 1024
     }
 }
