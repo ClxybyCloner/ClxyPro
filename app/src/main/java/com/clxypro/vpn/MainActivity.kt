@@ -233,15 +233,16 @@ class MainActivity : ComponentActivity() {
             return
         }
         val coreId = state.coreId
-        // Quantum (Aether) needs a serial on first connect, the way Hyper
-        // needs a sign-in. Asked once; the unlock is remembered.
-        if (coreId == "aether" && !Prefs.quantumUnlocked) {
-            serialDialogOpen.value = true
-            return
-        }
         // The CLXY Hyper (Firefox) core rides on the user's account; launch in-app sign-in directly.
         if (coreId == "firefox" && !Store.hasSession(this)) {
             webSignIn.launch(Intent(this, SignInActivity::class.java))
+            return
+        }
+        // Both engines need the same serial on first connect, after sign-in
+        // for Hyper. Asked once; the unlock is remembered and shared by
+        // Hyper and Quantum — one serial, one unlock.
+        if (!Prefs.quantumUnlocked) {
+            serialDialogOpen.value = true
             return
         }
         askNotifications()

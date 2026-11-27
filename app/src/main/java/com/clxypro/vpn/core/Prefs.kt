@@ -97,7 +97,9 @@ object Prefs {
             prefs().edit().putBoolean(KEY_SHARE_LAN, value).apply()
         }
 
-    /** Quantum (Aether) unlocked by a valid serial; asked once, on first connect. */
+    /** Serial unlock, shared by Hyper and Quantum — one serial, one unlock,
+     *  asked once, on first connect. The stored key keeps its old name so
+     *  devices already unlocked stay unlocked. */
     var quantumUnlocked: Boolean
         get() = prefs().getBoolean("quantum_unlocked", false)
         set(value) {

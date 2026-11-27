@@ -42,9 +42,9 @@ import com.clxypro.vpn.core.QuantumSerial
 import com.clxypro.vpn.ui.theme.ClxyColors
 
 /**
- * First-connect serial prompt for the Quantum (Aether) core. A valid serial
- * unlocks Quantum on this device; an invalid one just shows an error and
- * stays on the dialog.
+ * First-connect serial prompt, shared by Hyper and Quantum: one serial
+ * unlocks both engines on this device. A valid serial unlocks; an invalid
+ * one just shows an error and stays on the dialog.
  */
 @Composable
 fun QuantumSerialDialog(
@@ -81,14 +81,14 @@ fun QuantumSerialDialog(
                 modifier = Modifier.size(30.dp),
             )
             Text(
-                text = "Quantum Serial",
+                text = "CLXY Serial",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 color = ClxyColors.TextPrimary,
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = "Enter your Quantum serial number to activate CLXY Quantum on this device.",
+                text = "Enter your serial number to activate CLXY Hyper and Quantum on this device.",
                 fontSize = 12.sp,
                 color = ClxyColors.TextMuted,
                 textAlign = TextAlign.Center,
@@ -97,10 +97,11 @@ fun QuantumSerialDialog(
             OutlinedTextField(
                 value = code,
                 onValueChange = {
-                    code = it.uppercase().filter { c -> c.isLetterOrDigit() || c == '-' }.take(12)
+                    // 12 letters/digits plus up to 2 dashes (XXXX-XXXX-XXXX).
+                    code = it.uppercase().filter { c -> c.isLetterOrDigit() || c == '-' }.take(14)
                     invalid = false
                 },
-                placeholder = { Text("XXXXX") },
+                placeholder = { Text("XXXX-XXXX-XXXX") },
                 singleLine = true,
                 isError = invalid,
                 colors = clxyTextFieldColors(),

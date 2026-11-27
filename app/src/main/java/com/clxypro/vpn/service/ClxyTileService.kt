@@ -58,7 +58,9 @@ class ClxyTileService : TileService() {
 
     private fun needsUi(state: AppState.State): Boolean {
         if (state.coreId == "firefox" && !Store.hasSession(this)) return true
-        if (state.coreId == "aether" && !Prefs.quantumUnlocked) return true
+        // Both engines need the same serial on first connect; the tile
+        // routes through MainActivity so the dialog can ask for it.
+        if (!Prefs.quantumUnlocked) return true
         // Proxy mode never touches the system VPN, so it needs no consent.
         if (Prefs.mode != AppState.Mode.PROXY && VpnService.prepare(this) != null) return true
         return false
