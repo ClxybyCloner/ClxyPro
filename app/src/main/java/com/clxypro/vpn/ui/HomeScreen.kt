@@ -44,6 +44,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.ui.window.Dialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Bolt
@@ -110,6 +112,7 @@ fun HomeScreen(
     var showUpdate by remember { mutableStateOf(false) }
     var psiphonExit by remember { mutableStateOf(Prefs.psiphonExit) }
     var psiphonRegion by remember { mutableStateOf(Prefs.psiphonRegion) }
+    var showExitGuide by remember { mutableStateOf(false) }
 
     val statusColor by animateColorAsState(
         targetValue = when {
@@ -577,6 +580,23 @@ fun HomeScreen(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
+                    // Plain-language guide: what plain Quantum does and what
+                    // the Psiphon exit adds — a popup, no jargon.
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .border(1.dp, ClxyColors.CyanGlow.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                            .clickable { showExitGuide = true }
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = Texts.exitGuide,
+                            color = ClxyColors.CyanText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyRow(
@@ -604,6 +624,9 @@ fun HomeScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(sectionGap))
+                if (showExitGuide) {
+                    ExitGuideDialog(onDismiss = { showExitGuide = false })
+                }
             }
 
             RouteTunnelBox(
@@ -700,6 +723,41 @@ fun HomeScreen(
             )
 
             Spacer(modifier = Modifier.height(if (compact) 8.dp else 12.dp))
+        }
+    }
+}
+
+// Plain-language guide for the exit country: what plain Quantum does and
+// what the Psiphon exit adds. Written for ordinary users — no jargon.
+@Composable
+private fun ExitGuideDialog(onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(ClxyColors.CardSurface)
+                .border(1.dp, ClxyColors.CyanGlow.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = Texts.exitGuideTitle,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = ClxyColors.TextPrimary,
+            )
+            Text(
+                text = Texts.exitGuideBody,
+                fontSize = 13.sp,
+                color = ClxyColors.TextMuted,
+            )
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = Texts.exitGuideClose)
+            }
         }
     }
 }

@@ -297,11 +297,12 @@ fun CircularCountryFlag(
     size: Dp = 34.dp,
 ) {
     val code = countryCode.trim().uppercase(Locale.US)
+    // No ring around the flag (removed at the user's order, rc11 — the
+    // circle outline around the flags in the route box looked wrong).
     Box(
         modifier = modifier
             .size(size)
-            .clip(CircleShape)
-            .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape),
+            .clip(CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {

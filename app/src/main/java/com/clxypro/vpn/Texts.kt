@@ -1289,6 +1289,69 @@ object Texts {
             "最快（自动）"
 
         )
+    val exitGuide: String
+
+        get() = p(
+
+            "Guide",
+
+            "راهنما",
+
+            "Справка",
+
+            "Guía",
+
+            "指南"
+
+        )
+
+    val exitGuideTitle: String
+
+        get() = p(
+
+            "How the exit country works",
+
+            "کشور خروجی چطور کار می‌کنه؟",
+
+            "Как работает страна выхода",
+
+            "Cómo funciona el país de salida",
+
+            "出口国家如何工作"
+
+        )
+
+    val exitGuideBody: String
+
+        get() = p(
+
+            "With Quantum alone, the app picks the fastest route for you. Your IP comes from Cloudflare's network, so the country websites see is chosen for you — you can't pick it yourself.\n\nTurn Exit Node on and your traffic takes one extra hop through Psiphon, then comes out onto the internet from the country you pick above. Websites and apps then see you as being in that country. Choose Fastest (auto) and Psiphon picks the quickest country for you.",
+
+            "با کوانتومِ تنها، برنامه خودش سریع‌ترین مسیر رو برات انتخاب می‌کنه. آی‌پی‌ات از شبکه‌ی کلادفلر میاد، پس کشوری که سایت‌ها می‌بینن رو برنامه انتخاب می‌کنه و خودت نمی‌تونی انتخابش کنی.\n\nاگه «Exit Node» رو روشن کنی، ترافیکت یه قدم اضافه از سایفون رد می‌شه و از کشوری که بالا انتخاب کردی وارد اینترنت می‌شه. سایت‌ها و برنامه‌ها تو رو اهل همون کشور می‌بینن. اگه «سریع‌ترین» رو بزنی، سایفون خودش سریع‌ترین کشور رو برات انتخاب می‌کنه.",
+
+            "С одним только Quantum приложение само выбирает самый быстрый маршрут. Ваш IP приходит из сети Cloudflare, поэтому страну, которую видят сайты, выбирает приложение — вы сами её выбрать не можете.\n\nВключите Exit Node, и ваш трафик пройдёт ещё один шаг через Psiphon, а в интернет выйдет из страны, которую вы выбрали выше. Сайты и приложения будут видеть вас как жителя этой страны. Выберите «Самый быстрый», и Psiphon сам подберёт самую быструю страну.",
+
+            "Solo con Quantum, la app elige la ruta más rápida por ti. Tu IP viene de la red de Cloudflare, así que el país que ven los sitios web lo elige la app: tú no puedes elegirlo.\n\nSi activas el Exit Node, tu tráfico da un paso extra por Psiphon y sale a internet desde el país que elegiste arriba. Los sitios y las apps te verán como si estuvieras en ese país. Si eliges «El más rápido», Psiphon escoge el país más rápido por ti.",
+
+            "只用 Quantum 时，应用会为你选择最快的路线。你的 IP 来自 Cloudflare 的网络，所以网站看到的国家由应用决定，你自己无法选择。\n\n打开 Exit Node 后，你的流量会多经过 Psiphon 一步，再从你上面选择的国家进入互联网。网站和应用会认为你就在那个国家。选择「最快」，Psiphon 会为你挑选最快的国家。"
+
+        )
+
+    val exitGuideClose: String
+
+        get() = p(
+
+            "Got it",
+
+            "فهمیدم",
+
+            "Понятно",
+
+            "Entendido",
+
+            "知道了"
+
+        )
 
     val psiphonConduitSwitchHint: String
 
