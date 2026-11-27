@@ -40,6 +40,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -80,6 +82,7 @@ import androidx.compose.ui.unit.sp
 import com.clxypro.vpn.Texts
 import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.Prefs
+import com.clxypro.vpn.core.PsiphonExit
 import com.clxypro.vpn.core.QuantumSub
 import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.vpn.Store
@@ -396,6 +399,65 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(sectionGap))
 
+            // Psiphon exit (Quantum only), visible before connecting: the switch
+            // and the region list are always shown, not hidden behind the switch.
+            if (isQuantum) {
+                var psiphonExit by remember { mutableStateOf(Prefs.psiphonExit) }
+                var psiphonRegion by remember { mutableStateOf(Prefs.psiphonRegion) }
+                val selectedRegionName = if (psiphonRegion.isEmpty()) {
+                    Texts.exitRegionAuto
+                } else {
+                    PsiphonExit.REGIONS.find { it.first == psiphonRegion }
+                        ?.let { "${PsiphonExit.flag(it.first)} ${it.second}" }
+                        ?: psiphonRegion
+                }
+                Column(modifier = Modifier.testTag("home_exit_node")) {
+                    SettingSwitchRow(
+                        title = Texts.exitNode,
+                        subtitle = Texts.exitNodeHint,
+                        checked = psiphonExit,
+                        onCheckedChange = {
+                            psiphonExit = it
+                            Prefs.psiphonExit = it
+                        },
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "${Texts.exitRegion}: $selectedRegionName",
+                        color = ClxyColors.TextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        item {
+                            ExitRegionChip(
+                                label = Texts.exitRegionAuto,
+                                isSelected = psiphonRegion.isEmpty(),
+                                onClick = {
+                                    psiphonRegion = ""
+                                    Prefs.psiphonRegion = ""
+                                },
+                            )
+                        }
+                        items(PsiphonExit.REGIONS) { (code, _) ->
+                            ExitRegionChip(
+                                label = "${PsiphonExit.flag(code)} $code",
+                                isSelected = psiphonRegion == code,
+                                onClick = {
+                                    psiphonRegion = code
+                                    Prefs.psiphonRegion = code
+                                },
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(sectionGap))
+            }
+
             // Shield + Status Text
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -617,6 +679,34 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(if (compact) 8.dp else 12.dp))
         }
+    }
+}
+
+@Composable
+private fun ExitRegionChip(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (isSelected) ClxyColors.QuantumPurple.copy(alpha = 0.28f) else ClxyColors.CardSurface)
+            .border(
+                1.dp,
+                if (isSelected) ClxyColors.QuantumPurple.copy(alpha = 0.65f) else ClxyColors.GlassBorder,
+                RoundedCornerShape(999.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            color = if (isSelected) ClxyColors.QuantumPurple else ClxyColors.TextDim,
+            fontSize = 12.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+        )
     }
 }
 
