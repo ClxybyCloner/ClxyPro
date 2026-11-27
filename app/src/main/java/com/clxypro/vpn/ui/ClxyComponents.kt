@@ -48,6 +48,7 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -510,6 +511,8 @@ fun ClxyBottomNavBar(
     activeTab: MainTab,
     onSelectTab: (MainTab) -> Unit,
     isQuantum: Boolean = false,
+    onOpenLogs: () -> Unit = {},
+    logsOpen: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val activeTint = if (isQuantum) ClxyColors.QuantumPurple else ClxyColors.CyanBright
@@ -569,6 +572,24 @@ fun ClxyBottomNavBar(
                         )
                     },
                     onClick = { onSelectTab(MainTab.SERVERS) },
+                )
+
+                // Tab 3: Logs — opens the diagnostics log dialog (an overlay,
+                // not a tab screen), so errors are one tap away from Home.
+                BottomNavItem(
+                    selected = logsOpen,
+                    label = "Logs",
+                    activeColor = activeTint,
+                    tag = "nav_logs_button",
+                    icon = { _, tint ->
+                        Icon(
+                            imageVector = Icons.Rounded.Terminal,
+                            contentDescription = "Logs",
+                            tint = tint,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    onClick = onOpenLogs,
                 )
 
                 if (!isQuantum) {

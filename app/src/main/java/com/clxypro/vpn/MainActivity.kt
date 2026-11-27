@@ -164,6 +164,8 @@ class MainActivity : ComponentActivity() {
                                 activeTab = activeTab,
                                 onSelectTab = { activeTab = it },
                                 isQuantum = state.coreId == "aether",
+                                onOpenLogs = { logsOpen = true },
+                                logsOpen = logsOpen,
                             )
                         },
                     ) { innerPadding ->

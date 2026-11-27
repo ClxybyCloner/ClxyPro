@@ -108,6 +108,8 @@ fun HomeScreen(
     val isConnecting = state.busy || (state.running && !state.connected && !state.disconnecting)
     val hasFailure = !state.running && (state.diagnosis.isNotEmpty() || state.statusCode < 0)
     var showUpdate by remember { mutableStateOf(false) }
+    var psiphonExit by remember { mutableStateOf(Prefs.psiphonExit) }
+    var psiphonRegion by remember { mutableStateOf(Prefs.psiphonRegion) }
 
     val statusColor by animateColorAsState(
         targetValue = when {
@@ -222,7 +224,21 @@ fun HomeScreen(
     // here too, so a relay pinned by an older version shows its current name.
     val quantumPinned = Prefs.server("aether")
     val quantumPinnedLabel = QuantumSub.remarkRelayName(cleanDisplayLabel(Prefs.serverLabel("aether")))
-    val destCode = if (isQuantum) "CLXY" else {
+    val exitRegionName = if (psiphonRegion.isEmpty()) {
+        Texts.exitRegionAuto
+    } else {
+        PsiphonExit.REGIONS.find { it.first == psiphonRegion }
+            ?.let { "${PsiphonExit.flag(it.first)} ${it.second}" }
+            ?: psiphonRegion
+    }
+    val destCode = if (isQuantum) {
+        if (psiphonExit) {
+            // Exit on: the destination is the Psiphon egress country, not the relay.
+            if (psiphonRegion.isNotEmpty()) psiphonRegion
+            else if (isConnected && state.exitPlace.isNotEmpty()) inferCountryCode(state.exitPlace, "")
+            else "GLOBAL"
+        } else "CLXY"
+    } else {
         // Never take(2) of the exit NAME: "CatchAll Anycast / USA"
         // became "CA" and drew the Canada flag for a USA server.
         if (state.exit.isNotEmpty()) inferCountryCode(state.exit, "")
@@ -230,10 +246,13 @@ fun HomeScreen(
         else "REC"
     }
     val destName = if (isQuantum) {
-        // Quantum's destination is always the pinned relay: state.exit is
-        // a Hyper-only field (FirefoxCore sets it; AetherCore never does),
-        // so any value there on a Quantum session is a stale Hyper exit.
-        if (quantumPinnedLabel.isNotBlank()) quantumPinnedLabel
+        if (psiphonExit) {
+            // Measured egress place once the probe lands, else the chosen region.
+            if (isConnected && state.exitPlace.isNotEmpty()) state.exitPlace
+            else if (psiphonRegion.isNotEmpty()) {
+                PsiphonExit.REGIONS.find { it.first == psiphonRegion }?.second ?: psiphonRegion
+            } else "Psiphon exit · ${Texts.exitRegionAuto}"
+        } else if (quantumPinnedLabel.isNotBlank()) quantumPinnedLabel
         else "Auto Scan"
     } else {
         if (state.exit.isNotEmpty()) state.exit
@@ -241,8 +260,10 @@ fun HomeScreen(
         else "Auto Route · Recommended"
     }
     val destIp = if (isQuantum) {
-        // Same staleness rule as destName: exitIp is Hyper-only.
-        if (quantumPinned.isNotBlank()) quantumPinned
+        if (psiphonExit) {
+            if (isConnected && state.exitIp.isNotEmpty()) state.exitIp
+            else "Psiphon exit"
+        } else if (quantumPinned.isNotBlank()) quantumPinned
         else "Direct MASQUE Route"
     } else {
         if (state.exitIp.isNotEmpty()) state.exitIp
@@ -399,65 +420,6 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(sectionGap))
 
-            // Psiphon exit (Quantum only), visible before connecting: the switch
-            // and the region list are always shown, not hidden behind the switch.
-            if (isQuantum) {
-                var psiphonExit by remember { mutableStateOf(Prefs.psiphonExit) }
-                var psiphonRegion by remember { mutableStateOf(Prefs.psiphonRegion) }
-                val selectedRegionName = if (psiphonRegion.isEmpty()) {
-                    Texts.exitRegionAuto
-                } else {
-                    PsiphonExit.REGIONS.find { it.first == psiphonRegion }
-                        ?.let { "${PsiphonExit.flag(it.first)} ${it.second}" }
-                        ?: psiphonRegion
-                }
-                Column(modifier = Modifier.testTag("home_exit_node")) {
-                    SettingSwitchRow(
-                        title = Texts.exitNode,
-                        subtitle = Texts.exitNodeHint,
-                        checked = psiphonExit,
-                        onCheckedChange = {
-                            psiphonExit = it
-                            Prefs.psiphonExit = it
-                        },
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "${Texts.exitRegion}: $selectedRegionName",
-                        color = ClxyColors.TextMuted,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        item {
-                            ExitRegionChip(
-                                label = Texts.exitRegionAuto,
-                                isSelected = psiphonRegion.isEmpty(),
-                                onClick = {
-                                    psiphonRegion = ""
-                                    Prefs.psiphonRegion = ""
-                                },
-                            )
-                        }
-                        items(PsiphonExit.REGIONS) { (code, _) ->
-                            ExitRegionChip(
-                                label = "${PsiphonExit.flag(code)} $code",
-                                isSelected = psiphonRegion == code,
-                                onClick = {
-                                    psiphonRegion = code
-                                    Prefs.psiphonRegion = code
-                                },
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(sectionGap))
-            }
-
             // Shield + Status Text
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -584,6 +546,62 @@ fun HomeScreen(
                 }
             }
 
+            // Psiphon exit (Quantum only): a small toggle button + the region
+            // chips, above the route box — nothing exit-related at the top.
+            if (isQuantum) {
+                Spacer(modifier = Modifier.height(sectionGap))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("home_exit_row"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    ExitToggleButton(
+                        checked = psiphonExit,
+                        onClick = {
+                            psiphonExit = !psiphonExit
+                            Prefs.psiphonExit = psiphonExit
+                        },
+                    )
+                    Text(
+                        text = "${Texts.exitRegion}: $exitRegionName",
+                        color = ClxyColors.TextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    item {
+                        ExitRegionChip(
+                            label = Texts.exitRegionAuto,
+                            isSelected = psiphonRegion.isEmpty(),
+                            onClick = {
+                                psiphonRegion = ""
+                                Prefs.psiphonRegion = ""
+                            },
+                        )
+                    }
+                    items(PsiphonExit.REGIONS) { (code, _) ->
+                        ExitRegionChip(
+                            label = "${PsiphonExit.flag(code)} $code",
+                            isSelected = psiphonRegion == code,
+                            onClick = {
+                                psiphonRegion = code
+                                Prefs.psiphonRegion = code
+                            },
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(sectionGap))
+            }
+
             RouteTunnelBox(
                 connected = isConnected || isConnecting,
                 originCode = originCode,
@@ -678,6 +696,50 @@ fun HomeScreen(
             )
 
             Spacer(modifier = Modifier.height(if (compact) 8.dp else 12.dp))
+        }
+    }
+}
+
+@Composable
+private fun ExitToggleButton(
+    checked: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (checked) ClxyColors.QuantumPurple.copy(alpha = 0.28f) else ClxyColors.CardSurface)
+            .border(
+                1.dp,
+                if (checked) ClxyColors.QuantumPurple.copy(alpha = 0.65f) else ClxyColors.GlassBorder,
+                RoundedCornerShape(999.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(if (checked) ClxyColors.QuantumPurple else ClxyColors.TextDim),
+            )
+            Text(
+                text = Texts.exitNode,
+                color = if (checked) ClxyColors.QuantumPurple else ClxyColors.TextDim,
+                fontSize = 12.sp,
+                fontWeight = if (checked) FontWeight.Bold else FontWeight.Normal,
+            )
+            Text(
+                text = if (checked) "On" else "Off",
+                color = if (checked) ClxyColors.QuantumPurple else ClxyColors.TextMuted,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
