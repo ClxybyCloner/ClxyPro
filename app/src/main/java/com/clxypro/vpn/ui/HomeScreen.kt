@@ -247,11 +247,15 @@ fun HomeScreen(
     }
     val destName = if (isQuantum) {
         if (psiphonExit) {
-            // Measured egress place once the probe lands, else the chosen region.
-            if (isConnected && state.exitPlace.isNotEmpty()) state.exitPlace
-            else if (psiphonRegion.isNotEmpty()) {
+            // A region the user picked is the contract: show its name. The
+            // probe's geo of the egress IP can disagree (anycast/WARP IPs
+            // geolocate wrong — a Cloudflare egress read as "Tehran, Iran"
+            // under a US flag, rc6 2026-11-27), so the probe place is only
+            // the fallback for auto mode.
+            if (psiphonRegion.isNotEmpty()) {
                 PsiphonExit.REGIONS.find { it.first == psiphonRegion }?.second ?: psiphonRegion
-            } else "Psiphon exit · ${Texts.exitRegionAuto}"
+            } else if (isConnected && state.exitPlace.isNotEmpty()) state.exitPlace
+            else "Psiphon exit · ${Texts.exitRegionAuto}"
         } else if (quantumPinnedLabel.isNotBlank()) quantumPinnedLabel
         else "Auto Scan"
     } else {

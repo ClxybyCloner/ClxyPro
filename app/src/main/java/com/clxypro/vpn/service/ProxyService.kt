@@ -322,7 +322,7 @@ class ProxyService : Service() {
         GithubUpdates.maybeCheck(this)
         if (notified.compareAndSet(false, true)) {
             AppState.log("SOCKS5 listening on ${Prefs.socksAddress}, HTTP on ${Prefs.httpAddress}")
-            ExitProbe.start()
+            ExitProbe.start(coreProxy)
             getSystemService(NotificationManager::class.java).notify(
                 Notifications.NOTIFICATION_ID,
                 Notifications.build(this, Texts.appName, Texts.notificationProxy)

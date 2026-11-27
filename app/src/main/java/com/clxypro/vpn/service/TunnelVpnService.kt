@@ -322,7 +322,7 @@ class TunnelVpnService : VpnService() {
                 AppState.log("VPN up, core=${selected.id}, socks=$coreProxy")
                 // The tunnel is up, so GitHub is reachable: look for a newer release.
                 GithubUpdates.maybeCheck(this@TunnelVpnService)
-                ExitProbe.start()
+                ExitProbe.start(coreProxy)
                 if (Prefs.shareLan) {
                     ProxyFront.start(coreProxy)
                     LanShare.start(coreProxy)

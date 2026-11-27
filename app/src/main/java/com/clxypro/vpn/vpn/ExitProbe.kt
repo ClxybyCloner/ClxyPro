@@ -9,10 +9,18 @@ import java.net.Socket
 
 /**
  * Asks an echo service which address the tunnel hands to the outside world and
- * where it lives. The request goes through the core's own SOCKS5 port: the tun
- * builder keeps this app off the tunnel, so a direct connection would report
- * the provider's address instead of the exit's. The hostname travels to the
- * proxy unresolved, so the DNS lookup happens on the far side too.
+ * where it lives. The request goes through the tunnel's exit SOCKS5 — the
+ * address the service passes in (the Psiphon exit's 127.0.0.1:10829 while it
+ * runs, else the core's own port): the tun builder keeps this app off the
+ * tunnel, so a direct connection would report the provider's address instead
+ * of the exit's. The hostname travels to the proxy unresolved, so the DNS
+ * lookup happens on the far side too.
+ *
+ * NOTE (2026-11-27, rc6): probing aether's own SOCKS port while the exit ran
+ * measured the MASQUE egress instead — a Cloudflare WARP IP that ip-api
+ * reads as "Tehran, Iran" — and the Home screen showed it under a US flag.
+ * The probe must follow core.proxyAddress, the same address the bridge and
+ * the reachability checks already use.
  */
 object ExitProbe {
     private const val HOST = "ip-api.com"
@@ -25,17 +33,17 @@ object ExitProbe {
     @Volatile
     private var generation = 0
 
-    fun start() {
+    fun start(proxyAddress: String) {
         val token = ++generation
         AppState.update { it.copy(exitIp = "", exitPlace = "") }
-        Thread({ probe(token) }, "exit-probe").apply { isDaemon = true }.start()
+        Thread({ probe(token, proxyAddress) }, "exit-probe").apply { isDaemon = true }.start()
     }
 
     fun cancel() {
         generation++
     }
 
-    private fun probe(token: Int) {
+    private fun probe(token: Int, proxyAddress: String) {
         repeat(ATTEMPTS) { attempt ->
             if (token != generation) return
             if (attempt > 0) {
@@ -43,15 +51,17 @@ object ExitProbe {
                 if (token != generation) return
             }
             // The tunnel may be reported up before its first packet goes through.
-            val found = runCatching { fetch() }.getOrNull() ?: return@repeat
+            val found = runCatching { fetch(proxyAddress) }.getOrNull() ?: return@repeat
             if (token != generation) return
             AppState.update { it.copy(exitIp = found.first, exitPlace = found.second) }
             return
         }
     }
 
-    private fun fetch(): Pair<String, String> {
-        val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress(Prefs.LOOPBACK, Prefs.socksPort))
+    private fun fetch(proxyAddress: String): Pair<String, String> {
+        val host = proxyAddress.substringBeforeLast(':').ifEmpty { Prefs.LOOPBACK }
+        val port = proxyAddress.substringAfterLast(':').toIntOrNull() ?: Prefs.socksPort
+        val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress(host, port))
         Socket(proxy).use { sock ->
             sock.connect(InetSocketAddress.createUnresolved(HOST, 80), TIMEOUT_MS)
             sock.soTimeout = TIMEOUT_MS
