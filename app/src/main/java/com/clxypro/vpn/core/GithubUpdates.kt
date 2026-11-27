@@ -357,8 +357,11 @@ object GithubUpdates {
 
     internal fun compareVersions(left: String, right: String): Int {
         fun parts(value: String): List<Long> {
-            require(Regex("""\d+\.\d+\.\d+""").matches(value))
-            return value.split('.').map { it.toLong() }
+            // Version names may carry a pre-release suffix (1.5.31-rc7);
+            // compare the numeric part only.
+            val base = value.substringBefore('-')
+            require(Regex("""\d+\.\d+\.\d+""").matches(base))
+            return base.split('.').map { it.toLong() }
         }
         return parts(left).zip(parts(right)).firstOrNull { it.first != it.second }
             ?.let { it.first.compareTo(it.second) } ?: 0

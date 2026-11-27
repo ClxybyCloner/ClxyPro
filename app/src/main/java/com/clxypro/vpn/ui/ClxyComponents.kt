@@ -84,6 +84,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.clxypro.vpn.R
+import com.clxypro.vpn.core.PsiphonExit
 import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.ui.theme.InterFontFamily
 import java.util.Locale
@@ -322,110 +323,33 @@ fun CircularCountryFlag(
                         )
                         drawCircle(color = Color.White, radius = w * 0.12f)
                     }
-                    "US" -> {
-                        val stripeH = h / 13f
-                        for (i in 0 until 13) {
-                            drawRect(
-                                color = if (i % 2 == 0) Color(0xFFB22234) else Color.White,
-                                topLeft = Offset(0f, i * stripeH),
-                                size = Size(w, stripeH + 0.5f),
-                            )
-                        }
-                        drawRect(color = Color(0xFF3C3B6E), size = Size(w * 0.46f, h * 0.54f))
-                        for (row in 0..2) {
-                            for (col in 0..2) {
-                                drawCircle(
-                                    color = Color.White,
-                                    radius = w * 0.028f,
-                                    center = Offset(w * (0.10f + col * 0.13f), h * (0.12f + row * 0.14f)),
-                                )
-                            }
-                        }
-                    }
-                    "DE" -> {
-                        drawRect(color = Color(0xFF111111), topLeft = Offset.Zero, size = Size(w, h / 3f + 0.5f))
-                        drawRect(color = Color(0xFFDD0000), topLeft = Offset(0f, h / 3f), size = Size(w, h / 3f + 0.5f))
-                        drawRect(color = Color(0xFFFFCE00), topLeft = Offset(0f, 2f * h / 3f), size = Size(w, h / 3f + 0.5f))
-                    }
-                    "FR" -> {
-                        drawRect(color = Color(0xFF002654), topLeft = Offset.Zero, size = Size(w / 3f + 0.5f, h))
-                        drawRect(color = Color.White, topLeft = Offset(w / 3f, 0f), size = Size(w / 3f + 0.5f, h))
-                        drawRect(color = Color(0xFFED2939), topLeft = Offset(2f * w / 3f, 0f), size = Size(w / 3f + 0.5f, h))
-                    }
-                    "GB" -> {
-                        drawRect(color = Color(0xFF012169))
-                        drawLine(Color.White, Offset.Zero, Offset(w, h), strokeWidth = w * 0.18f)
-                        drawLine(Color.White, Offset(w, 0f), Offset(0f, h), strokeWidth = w * 0.18f)
-                        drawLine(Color(0xFFC8102E), Offset.Zero, Offset(w, h), strokeWidth = w * 0.08f)
-                        drawLine(Color(0xFFC8102E), Offset(w, 0f), Offset(0f, h), strokeWidth = w * 0.08f)
-                        drawRect(color = Color.White, topLeft = Offset(w * 0.39f, 0f), size = Size(w * 0.22f, h))
-                        drawRect(color = Color.White, topLeft = Offset(0f, h * 0.39f), size = Size(w, h * 0.22f))
-                        drawRect(color = Color(0xFFC8102E), topLeft = Offset(w * 0.43f, 0f), size = Size(w * 0.14f, h))
-                        drawRect(color = Color(0xFFC8102E), topLeft = Offset(0f, h * 0.43f), size = Size(w, h * 0.14f))
-                    }
-                    "NL" -> {
-                        drawRect(color = Color(0xFFAE1C28), topLeft = Offset.Zero, size = Size(w, h / 3f + 0.5f))
-                        drawRect(color = Color.White, topLeft = Offset(0f, h / 3f), size = Size(w, h / 3f + 0.5f))
-                        drawRect(color = Color(0xFF21468B), topLeft = Offset(0f, 2f * h / 3f), size = Size(w, h / 3f + 0.5f))
-                    }
-                    "CA" -> {
-                        drawRect(color = Color(0xFFFF0000), topLeft = Offset.Zero, size = Size(w * 0.25f, h))
-                        drawRect(color = Color.White, topLeft = Offset(w * 0.25f, 0f), size = Size(w * 0.50f, h))
-                        drawRect(color = Color(0xFFFF0000), topLeft = Offset(w * 0.75f, 0f), size = Size(w * 0.25f, h))
-                        drawCircle(color = Color(0xFFFF0000), radius = w * 0.14f, center = Offset(w * 0.5f, h * 0.5f))
-                    }
-                    "JP" -> {
-                        drawRect(color = Color.White)
-                        drawCircle(color = Color(0xFFBC002D), radius = w * 0.28f)
-                    }
-                    "IR" -> {
-                        // Simplified: tricolor only (the emblem and takbir
-                        // border are invisible at flag size).
-                        drawRect(color = Color(0xFF239F40), topLeft = Offset.Zero, size = Size(w, h / 3f + 0.5f))
-                        drawRect(color = Color.White, topLeft = Offset(0f, h / 3f), size = Size(w, h / 3f + 0.5f))
-                        drawRect(color = Color(0xFFDA0000), topLeft = Offset(0f, 2f * h / 3f), size = Size(w, h / 3f + 0.5f))
-                    }
-                    "IE" -> {
-                        drawRect(color = Color(0xFF169B62), topLeft = Offset.Zero, size = Size(w / 3f + 0.5f, h))
-                        drawRect(color = Color.White, topLeft = Offset(w / 3f, 0f), size = Size(w / 3f + 0.5f, h))
-                        drawRect(color = Color(0xFFFF883E), topLeft = Offset(2f * w / 3f, 0f), size = Size(w / 3f + 0.5f, h))
-                    }
-                    "CH" -> {
-                        drawRect(color = Color(0xFFDA291C))
-                        drawRect(color = Color.White, topLeft = Offset(w * 0.40f, h * 0.17f), size = Size(w * 0.20f, h * 0.66f))
-                        drawRect(color = Color.White, topLeft = Offset(w * 0.17f, h * 0.40f), size = Size(w * 0.66f, h * 0.20f))
-                    }
-                    "SE" -> {
-                        drawRect(color = Color(0xFF006AA7))
-                        drawRect(color = Color(0xFFFECC02), topLeft = Offset(w * 0.28f, 0f), size = Size(w * 0.16f, h))
-                        drawRect(color = Color(0xFFFECC02), topLeft = Offset(0f, h * 0.42f), size = Size(w, h * 0.16f))
-                    }
-                    "FI" -> {
-                        drawRect(color = Color.White)
-                        drawRect(color = Color(0xFF002F6C), topLeft = Offset(w * 0.26f, 0f), size = Size(w * 0.18f, h))
-                        drawRect(color = Color(0xFF002F6C), topLeft = Offset(0f, h * 0.41f), size = Size(w, h * 0.18f))
-                    }
-                    "AR" -> {
-                        drawRect(color = Color(0xFF74ACDF), topLeft = Offset.Zero, size = Size(w, h / 3f + 0.5f))
-                        drawRect(color = Color.White, topLeft = Offset(0f, h / 3f), size = Size(w, h / 3f + 0.5f))
-                        drawRect(color = Color(0xFF74ACDF), topLeft = Offset(0f, 2f * h / 3f), size = Size(w, h / 3f + 0.5f))
-                        drawCircle(color = Color(0xFFF6B40E), radius = w * 0.10f, center = Offset(w * 0.5f, h * 0.5f))
-                    }
                     "CLXY" -> {
                         // Brand badge (Quantum/Aether destination), not a country.
                         drawRect(brush = Brush.linearGradient(listOf(Color(0xFF00E5FF), Color(0xFF7C3AED), Color(0xFF9333EA))))
                     }
                     else -> {
-                        val h1 = (code.hashCode() and 0x7FFFFFFF) % 360
-                        val c1 = Color.hsl(h1.toFloat(), 0.65f, 0.42f)
-                        val c2 = Color.hsl(((h1 + 48) % 360).toFloat(), 0.72f, 0.30f)
-                        drawRect(brush = Brush.linearGradient(listOf(c1, c2)))
+                        // Two-letter country codes render as an emoji flag
+                        // (Text below); nothing to draw for them here.
+                        if (code.length != 2 || !code.all { it.isLetter() }) {
+                            val h1 = (code.hashCode() and 0x7FFFFFFF) % 360
+                            val c1 = Color.hsl(h1.toFloat(), 0.65f, 0.42f)
+                            val c2 = Color.hsl(((h1 + 48) % 360).toFloat(), 0.72f, 0.30f)
+                            drawRect(brush = Brush.linearGradient(listOf(c1, c2)))
+                        }
                     }
                 }
             }
         }
-        val showText = code == "CLXY" || code !in setOf("", "REC", "AUTO", "US", "DE", "FR", "GB", "NL", "CA", "JP", "IR", "IE", "CH", "SE", "FI", "AR")
-        if (showText) {
+        // Every two-letter country code gets its real flag emoji (the
+        // region chips already render these fine); the hand-drawn set only
+        // covered 14 countries, so BE/AT/AU/... fell back to a coloured
+        // badge with the code on it.
+        if (code.length == 2 && code.all { it.isLetter() }) {
+            Text(
+                text = PsiphonExit.flag(code),
+                fontSize = (size.value * 0.72f).sp,
+            )
+        } else if (code == "CLXY" || code !in setOf("", "REC", "AUTO")) {
             Text(
                 text = if (code == "CLXY") "CX" else code.take(2),
                 color = Color.White,
