@@ -102,11 +102,23 @@ jobs:
           body: ${{ steps.changelog.outputs.body }}
           fail_on_unmatched_files: true
 
+      # Pre-release versions (1.5.31-rc1) are test builds: they must never
+      # refresh the rolling "latest" release, which the in-app updater reads.
+      - name: Check pre-release version
+        id: pre
+        run: |
+          version=$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts)
+          if [[ "$version" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # A branch only ever gets this rolling release, so the APKs under Releases
       # follow main instead of waiting for the next version tag. Version tags
       # above stay the permanent, numbered snapshots.
       - name: Refresh the Latest build release
-        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') && steps.pre.outputs.prerelease != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
@@ -126,7 +138,7 @@ jobs:
       # version's APKs would linger next to the new ones. Drop whatever is not
       # part of this build.
       - name: Drop stale APKs from the Latest build release
-        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') && steps.pre.outputs.prerelease != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -200,8 +200,10 @@ fi
 
 VERSION="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' "$GRADLE_FILE")"
 CODE="$(sed -nE 's/^[[:space:]]*versionCode = ([0-9]+).*/\1/p' "$GRADLE_FILE")"
-[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-    printf '%s\n' 'Could not read a numeric major.minor.patch versionName.' >&2
+# A pre-release suffix (-rc1, -beta1, ...) is allowed: test builds carry one,
+# and the in-app updater ignores any version that is not plain major.minor.patch.
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || {
+    printf '%s\n' 'Could not read a versionName (major.minor.patch, optionally -suffix).' >&2
     exit 1
 }
 [[ "$CODE" =~ ^[1-9][0-9]{0,9}$ ]] && [ "$CODE" -le 2100000000 ] || {
