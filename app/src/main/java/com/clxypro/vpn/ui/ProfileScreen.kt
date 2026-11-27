@@ -99,6 +99,7 @@ import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.CoreRegistry
 import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.Prefs
+import com.clxypro.vpn.core.PsiphonExit
 import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.vpn.LogLine
 import com.clxypro.vpn.vpn.Logs
@@ -398,6 +399,8 @@ fun GeneralSettingsDialog(onDismiss: () -> Unit) {
     var connectVibration by remember { mutableStateOf(Prefs.connectVibration) }
     var autoRetry by remember { mutableStateOf(Prefs.autoRetry) }
     var speedNotification by remember { mutableStateOf(Prefs.showSpeedInNotification) }
+    var psiphonExit by remember { mutableStateOf(Prefs.psiphonExit) }
+    var psiphonRegion by remember { mutableStateOf(Prefs.psiphonRegion) }
     var currentLang by remember { mutableStateOf(AppLocale.current(context)) }
 
     Dialog(
@@ -454,6 +457,54 @@ fun GeneralSettingsDialog(onDismiss: () -> Unit) {
                         },
                     )
 
+                    SettingSwitchRow(
+                        title = Texts.exitNode,
+                        subtitle = Texts.exitNodeHint,
+                        checked = psiphonExit,
+                        onCheckedChange = {
+                            psiphonExit = it
+                            Prefs.psiphonExit = it
+                        },
+                    )
+
+                    if (psiphonExit) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = Texts.exitRegion,
+                            color = ClxyColors.TextMuted,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(ClxyColors.CardSurface)
+                                .border(1.dp, ClxyColors.GlassBorder, RoundedCornerShape(12.dp))
+                                .padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            ExitRegionRow(
+                                label = Texts.exitRegionAuto,
+                                isSelected = psiphonRegion.isEmpty(),
+                                onClick = {
+                                    psiphonRegion = ""
+                                    Prefs.psiphonRegion = ""
+                                },
+                            )
+                            PsiphonExit.REGIONS.forEach { (code, name) ->
+                                ExitRegionRow(
+                                    label = "${PsiphonExit.flag(code)} $name",
+                                    isSelected = psiphonRegion == code,
+                                    onClick = {
+                                        psiphonRegion = code
+                                        Prefs.psiphonRegion = code
+                                    },
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Application Language",
@@ -505,6 +556,39 @@ fun GeneralSettingsDialog(onDismiss: () -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ExitRegionRow(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isSelected) ClxyColors.BlueDeep.copy(alpha = 0.45f) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = label,
+            color = if (isSelected) ClxyColors.CyanText else ClxyColors.TextPrimary,
+            fontSize = 13.5.sp,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+        )
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = null,
+                tint = ClxyColors.CyanGlow,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }

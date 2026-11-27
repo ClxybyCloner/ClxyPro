@@ -8,7 +8,7 @@ OUT="dist"
 APK_DIR="app/build/outputs/apk/release"
 ABIS=(armeabi-v7a arm64-v8a)
 LIBRARIES=(
-    libaether.so libc2tun.so libffvpn.so
+    libaether.so libc2tun.so libffvpn.so libpsiphon.so
 )
 ASSETS=(
     ca_roots.pem

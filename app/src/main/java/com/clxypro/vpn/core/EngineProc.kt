@@ -83,7 +83,7 @@ object EngineProc {
             val closeParen = stat.lastIndexOf(')')
             if (closeParen < 0) return@forEach
             val comm = stat.substring(stat.indexOf('(') + 1, closeParen)
-            if (!comm.contains("ffvpn") && !comm.contains("aether")) return@forEach
+            if (!comm.contains("ffvpn") && !comm.contains("aether") && !comm.contains("psiphon")) return@forEach
             // Fields after ") ": state ppid ...
             val ppid = stat.substring(closeParen + 2).split(' ').getOrNull(1)?.toIntOrNull()
                 ?: return@forEach

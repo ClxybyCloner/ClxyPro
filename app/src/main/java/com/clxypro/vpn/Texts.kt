@@ -1226,6 +1226,70 @@ object Texts {
 
         )
 
+    val exitNode: String
+
+        get() = p(
+
+            "Exit Node (Psiphon)",
+
+            "گره خروجی (سایفون)",
+
+            "Выходной узел (Psiphon)",
+
+            "Nodo de salida (Psiphon)",
+
+            "出口节点（Psiphon）"
+
+        )
+
+    val exitNodeHint: String
+
+        get() = p(
+
+            "Only for CLXY Quantum: traffic goes through Psiphon so you can pick the exit country.",
+
+            "فقط برای کوانتوم: ترافیک از سایفون رد می‌شه تا کشور خروجی رو انتخاب کنی.",
+
+            "Только для CLXY Quantum: трафик идёт через Psiphon, страну выхода можно выбрать.",
+
+            "Solo para CLXY Quantum: el tráfico pasa por Psiphon para elegir el país de salida.",
+
+            "仅适用于 CLXY Quantum：流量经由 Psiphon，可选择出口国家。"
+
+        )
+
+    val exitRegion: String
+
+        get() = p(
+
+            "Exit country",
+
+            "کشور خروجی",
+
+            "Страна выхода",
+
+            "País de salida",
+
+            "出口国家"
+
+        )
+
+    val exitRegionAuto: String
+
+        get() = p(
+
+            "Fastest (auto)",
+
+            "سریع‌ترین (خودکار)",
+
+            "Самый быстрый (авто)",
+
+            "La más rápida (auto)",
+
+            "最快（自动）"
+
+        )
+
     val psiphonConduitSwitchHint: String
 
         get() = p(

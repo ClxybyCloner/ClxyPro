@@ -17,7 +17,8 @@ import java.net.Socket
  */
 class AetherCore : VpnCore {
     override val id = "aether"
-    override val proxyAddress get() = "$LOOPBACK:$socksPortUsed"
+    override val proxyAddress
+        get() = if (psiphonExit.isRunning) psiphonExit.exitAddress else "$LOOPBACK:$socksPortUsed"
 
     /** The SOCKS port the engine actually bound (1080 unless it was busy). */
     @Volatile
@@ -40,6 +41,9 @@ class AetherCore : VpnCore {
 
     @Volatile
     private var lastLine = ""
+
+    /** Psiphon exit behind this engine (MASQUE transport, Psiphon egress). */
+    private val psiphonExit = PsiphonExit()
 
     @Volatile
     private var serving = false
@@ -68,6 +72,7 @@ class AetherCore : VpnCore {
         workDir.mkdirs()
         stopping = false
         stopVpn()
+        psiphonExit.stop()
         discoveredPeer = null
         // Same bind failure as the Firefox core: reap a previous run's
         // orphaned engine, then bind a port that is actually free.
@@ -94,9 +99,8 @@ class AetherCore : VpnCore {
                 val fastError = runStage(executable, fastArgs, FAST_RECONNECT_MS)
                 if (stopping) return null
                 if (fastError == null) {
-                    emit(1004, "ready", "")
                     AppState.log("engine $id: fast reconnect successful via cached relay $cached")
-                    return null
+                    return finishConnect()
                 }
                 AppState.log("engine $id: fast reconnect failed ($fastError), proceeding to full scan")
             } else {
@@ -109,8 +113,7 @@ class AetherCore : VpnCore {
         val first = runStage(executable, http2Args(), HTTP2_STAGE_MS)
         if (stopping) return null
         if (first == null) {
-            emit(1004, "ready", "")
-            return null
+            return finishConnect()
         }
         AppState.log("engine $id http2 stage: $first")
 
@@ -119,8 +122,7 @@ class AetherCore : VpnCore {
         val second = runStage(executable, automaticArgs(), AUTO_STAGE_MS)
         if (stopping) return null
         if (second == null) {
-            emit(1004, "ready", "")
-            return null
+            return finishConnect()
         }
         AppState.log("engine $id automatic stage: $second")
         return Texts.endpointNotFound
@@ -129,7 +131,31 @@ class AetherCore : VpnCore {
     override fun disconnect() {
         stopping = true
         stopVpn()
+        psiphonExit.stop()
         destroyProcess()
+    }
+
+    /**
+     * After a MASQUE stage succeeds: bring the Psiphon exit up when it is
+     * enabled, then report ready. Returns an error string on failure, null on
+     * success. The exit's error goes through the services' normal fail/retry
+     * path (FailureText translates the "psiphon: ..." marker).
+     */
+    private fun finishConnect(): String? {
+        if (!Prefs.psiphonExit) {
+            emit(1004, "ready", "")
+            return null
+        }
+        emit(1002, "psiphon exit", "")
+        val error = psiphonExit.start(
+            appContext,
+            "socks5://$LOOPBACK:$socksPortUsed",
+            Prefs.psiphonRegion,
+            PSIPHON_START_TIMEOUT_MS,
+        ) { stopping }
+        if (error != null) return error
+        emit(1004, "ready", "")
+        return null
     }
 
     override fun startVpn(fd: Int): String? {
@@ -292,7 +318,7 @@ class AetherCore : VpnCore {
               icmp: 'reply'
             socks5:
               address: $LOOPBACK
-              port: $socksPortUsed
+              port: ${if (psiphonExit.isRunning) psiphonExit.exitSocksPort else socksPortUsed}
               udp: 'udp'
             misc:
               task-stack-size: 32768
@@ -321,6 +347,7 @@ class AetherCore : VpnCore {
         const val FAST_RECONNECT_MS = 12_000L
         const val HTTP2_STAGE_MS = 90_000L
         const val AUTO_STAGE_MS = 240_000L
+        const val PSIPHON_START_TIMEOUT_MS = PsiphonExit.START_TIMEOUT_MS
         val PEER_REGEX = Regex("""(?:\d{1,3}\.){3}\d{1,3}:\d{2,5}""")
     }
 }

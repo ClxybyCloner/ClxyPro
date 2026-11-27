@@ -193,6 +193,11 @@ object FailureText {
         "(the session itself is fine) — retrying; if it keeps failing, " +
         "try another network or Quantum"
 
+    /** The sentence a failed Psiphon exit is reported with, everywhere. */
+    const val PSIPHON_FAILED =
+        "Psiphon exit did not come up (Quantum itself connected) — " +
+        "try another region or turn the exit off"
+
     /** True for a stalled session check, raw or already translated. */
     fun isSessionTimeout(detail: String): Boolean =
         detail == SESSION_TIMEOUT ||
@@ -207,6 +212,10 @@ object FailureText {
          (detail.contains("deadline exceeded", ignoreCase = true) ||
           detail.contains("timeout exceeded", ignoreCase = true)))
 
+    /** True for a Psiphon exit failure, raw or already translated. */
+    fun isPsiphonFailure(detail: String): Boolean =
+        detail == PSIPHON_FAILED || detail.startsWith("psiphon:", ignoreCase = true)
+
     /** True for either stalled account-server step — both clear at random, so both retry fast. */
     fun isStallTimeout(detail: String): Boolean =
         isSessionTimeout(detail) || isOAuthTimeout(detail)
@@ -214,6 +223,7 @@ object FailureText {
     fun translate(detail: String): String = when {
         isSessionTimeout(detail) -> SESSION_TIMEOUT
         isOAuthTimeout(detail) -> OAUTH_TIMEOUT
+        isPsiphonFailure(detail) -> PSIPHON_FAILED
         else -> detail
     }
 }

@@ -26,6 +26,8 @@ object Prefs {
     private const val KEY_AUTO_RETRY = "auto_retry"
     private const val KEY_TOR_BRIDGES = "tor_bridges"
     private const val KEY_PSIPHON_CONDUIT = "psiphon_conduit"
+    private const val KEY_PSIPHON_EXIT = "psiphon_exit"
+    private const val KEY_PSIPHON_REGION = "psiphon_region"
     private const val KEY_TOOLS_REPLACE = "tools_replace"
     private const val KEY_VPNGATE_FILTER = "vpngate_filter"
     private const val KEY_SOCKS_PORT = "socks_port"
@@ -129,6 +131,23 @@ object Prefs {
         get() = prefs().getBoolean(KEY_PSIPHON_CONDUIT, false)
         set(value) {
             prefs().edit().putBoolean(KEY_PSIPHON_CONDUIT, value).apply()
+        }
+
+    /**
+     * Psiphon exit behind Quantum: the MASQUE transport stays, Psiphon picks
+     * the egress country. Off by default; only the aether core reads it.
+     */
+    var psiphonExit: Boolean
+        get() = prefs().getBoolean(KEY_PSIPHON_EXIT, false)
+        set(value) {
+            prefs().edit().putBoolean(KEY_PSIPHON_EXIT, value).apply()
+        }
+
+    /** Egress region ISO code ("" = fastest, Psiphon picks). */
+    var psiphonRegion: String
+        get() = prefs().getString(KEY_PSIPHON_REGION, "") ?: ""
+        set(value) {
+            prefs().edit().putString(KEY_PSIPHON_REGION, value).apply()
         }
 
     /** Applying a scanned list drops what the core used before, instead of adding to it. */
