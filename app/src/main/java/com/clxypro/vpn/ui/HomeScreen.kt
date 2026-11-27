@@ -21,7 +21,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -68,23 +67,18 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.clxypro.vpn.R
 import com.clxypro.vpn.Texts
 import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.Prefs
@@ -94,8 +88,6 @@ import com.clxypro.vpn.ui.theme.ClxyColors
 import com.clxypro.vpn.vpn.Store
 import com.clxypro.vpn.vpn.cleanDisplayLabel
 import kotlinx.coroutines.delay
-import kotlin.math.PI
-import kotlin.math.sin
 import java.util.Locale
 
 @Composable
@@ -910,16 +902,38 @@ private fun CosmicPowerButton(
             )
         }
 
+        val coreStart by animateColorAsState(
+            targetValue = when {
+                connected -> if (isQuantum) ClxyColors.QuantumPurple else ClxyColors.CyanBright
+                connecting -> ClxyColors.AmberWarning
+                else -> Color(0xFF1E293B)
+            },
+            animationSpec = tween(380),
+            label = "coreStart",
+        )
+        val coreMid by animateColorAsState(
+            targetValue = when {
+                connected -> if (isQuantum) Color(0xFF4C1D95) else ClxyColors.BlueDeep
+                connecting -> ClxyColors.BluePrimary
+                else -> Color(0xFF0F172A)
+            },
+            animationSpec = tween(380),
+            label = "coreMid",
+        )
+        val coreEnd by animateColorAsState(
+            targetValue = when {
+                connected -> if (isQuantum) ClxyColors.QuantumViolet else ClxyColors.PurplePrimary
+                connecting -> ClxyColors.PurplePrimary
+                else -> Color(0xFF1E1B4B)
+            },
+            animationSpec = tween(380),
+            label = "coreEnd",
+        )
         val borderColor by animateColorAsState(
             targetValue = if (connected || connecting) Color(0x99BAE6FD) else Color(0x4794A3B8),
             animationSpec = tween(320),
             label = "powerBorder",
         )
-
-        // Grey version of the logo for the disconnected state.
-        val greyLogoFilter = remember {
-            ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
-        }
 
         Box(
             modifier = Modifier
@@ -932,7 +946,7 @@ private fun CosmicPowerButton(
                     spotColor = if (connected) glowSecondary else Color.Black,
                 )
                 .clip(CircleShape)
-                .background(Color(0xFF0B1220))
+                .background(Brush.linearGradient(listOf(coreStart, coreMid, coreEnd)))
                 .border(1.5.dp, borderColor, CircleShape)
                 .clickable(
                     interactionSource = interactionSource,
@@ -941,75 +955,21 @@ private fun CosmicPowerButton(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            // Connecting: yellow floating liquid sloshing inside the disc.
             if (connecting) {
-                LiquidFill(modifier = Modifier.fillMaxSize())
+                CircularProgressIndicator(
+                    color = Color.White,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(buttonSize * 0.33f),
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.PowerSettingsNew,
+                    contentDescription = if (connected) "Disconnect VPN" else "Connect VPN",
+                    tint = Color.White,
+                    modifier = Modifier.size(buttonSize * 0.35f),
+                )
             }
-            // The app logo is the button: grey while off, its own colours
-            // once connected.
-            Image(
-                painter = painterResource(id = R.drawable.clxy_logo),
-                contentDescription = if (connected) "Disconnect VPN" else "Connect VPN",
-                contentScale = ContentScale.Fit,
-                colorFilter = if (!connected && !connecting) greyLogoFilter else null,
-                modifier = Modifier.size(buttonSize * 0.86f),
-            )
         }
-    }
-}
-
-/**
- * Yellow liquid sloshing inside the power disc while the tunnel is
- * connecting: a wave that rises and falls, drawn under the logo.
- */
-@Composable
-private fun LiquidFill(
-    modifier: Modifier = Modifier,
-) {
-    val infinite = rememberInfiniteTransition(label = "liquidFill")
-    val phase by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1600, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "liquidPhase",
-    )
-    val level by infinite.animateFloat(
-        initialValue = 0.42f,
-        targetValue = 0.68f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2600, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "liquidLevel",
-    )
-    Canvas(modifier = modifier.fillMaxSize()) {
-        val w = size.width
-        val h = size.height
-        val baseY = h * (1f - level)
-        val waveAmp = h * 0.035f
-        val waveLen = w / 1.5f
-        val wave = 2f * PI.toFloat()
-        val path = Path().apply {
-            moveTo(0f, baseY)
-            var x = 0f
-            while (x <= w) {
-                val y = baseY + waveAmp * sin(wave * (x / waveLen) + phase * wave)
-                lineTo(x, y)
-                x += 4f
-            }
-            lineTo(w, h)
-            lineTo(0f, h)
-            close()
-        }
-        drawPath(
-            path = path,
-            brush = Brush.verticalGradient(
-                listOf(Color(0xFFFFE082), Color(0xFFFFB300), Color(0xFFFF8F00)),
-            ),
-        )
     }
 }
 

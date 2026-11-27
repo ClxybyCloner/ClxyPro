@@ -11,8 +11,8 @@ android {
         applicationId = "com.clxypro.vpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 45
-        versionName = "1.5.31-rc8"
+        versionCode = 46
+        versionName = "1.5.31-rc9"
     }
 
     // A fixed key kept in the repo. Every build, local or CI, signs with the
