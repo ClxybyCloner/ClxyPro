@@ -729,8 +729,12 @@ fun HomeScreen(
 
 // Plain-language guide for the exit country: what plain Quantum does and
 // what the Psiphon exit adds. Written for ordinary users — no jargon.
+// The pill in the corner switches the text to Persian on demand.
 @Composable
 private fun ExitGuideDialog(onDismiss: () -> Unit) {
+    var showFa by remember { mutableStateOf(false) }
+    val title = if (showFa) Texts.exitGuideTitleFa else Texts.exitGuideTitle
+    val body = if (showFa) Texts.exitGuideBodyFa else Texts.exitGuideBody
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -741,14 +745,38 @@ private fun ExitGuideDialog(onDismiss: () -> Unit) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ClxyColors.TextPrimary,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (!Texts.isFa) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .border(1.dp, ClxyColors.CyanGlow.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                            .clickable { showFa = !showFa }
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = if (showFa) Texts.languageName else "فارسی",
+                            color = ClxyColors.CyanText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                }
+            }
             Text(
-                text = Texts.exitGuideTitle,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                color = ClxyColors.TextPrimary,
-            )
-            Text(
-                text = Texts.exitGuideBody,
+                text = body,
                 fontSize = 13.sp,
                 color = ClxyColors.TextMuted,
             )
