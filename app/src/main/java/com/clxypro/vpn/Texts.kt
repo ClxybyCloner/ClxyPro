@@ -1237,15 +1237,15 @@ object Texts {
 
         get() = p(
 
-            "Exit Node (Psiphon)",
+            "Exit Node",
 
-            "گره خروجی (سایفون)",
+            "گره خروجی",
 
-            "Выходной узел (Psiphon)",
+            "Выходной узел",
 
-            "Nodo de salida (Psiphon)",
+            "Nodo de salida",
 
-            "出口节点（Psiphon）"
+            "出口节点"
 
         )
 

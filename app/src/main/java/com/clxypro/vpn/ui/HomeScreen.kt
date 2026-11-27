@@ -55,6 +55,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -75,10 +76,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.clxypro.vpn.Texts
@@ -735,7 +739,16 @@ private fun ExitGuideDialog(onDismiss: () -> Unit) {
     var showFa by remember { mutableStateOf(false) }
     val title = if (showFa) Texts.exitGuideTitleFa else Texts.exitGuideTitle
     val body = if (showFa) Texts.exitGuideBodyFa else Texts.exitGuideBody
+    // Persian text needs a right-to-left paragraph: with the app in English
+    // the dialog composes left-to-right, so the mixed Persian/English words
+    // landed out of order and left-aligned (rc13 screenshot). Force RTL
+    // layout direction and right alignment whenever Persian is shown.
+    val isRtl = showFa || Texts.isFa
     Dialog(onDismissRequest = onDismiss) {
+        CompositionLocalProvider(
+            LocalLayoutDirection provides
+                if (isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -755,6 +768,7 @@ private fun ExitGuideDialog(onDismiss: () -> Unit) {
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     color = ClxyColors.TextPrimary,
+                    textAlign = if (isRtl) TextAlign.Right else TextAlign.Start,
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 if (!Texts.isFa) {
@@ -779,6 +793,7 @@ private fun ExitGuideDialog(onDismiss: () -> Unit) {
                 text = body,
                 fontSize = 13.sp,
                 color = ClxyColors.TextMuted,
+                textAlign = if (isRtl) TextAlign.Right else TextAlign.Start,
             )
             Button(
                 onClick = onDismiss,
@@ -786,6 +801,7 @@ private fun ExitGuideDialog(onDismiss: () -> Unit) {
             ) {
                 Text(text = Texts.exitGuideClose)
             }
+        }
         }
     }
 }
