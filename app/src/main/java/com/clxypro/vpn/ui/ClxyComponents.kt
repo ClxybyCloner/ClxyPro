@@ -592,24 +592,23 @@ fun ClxyBottomNavBar(
                     onClick = onOpenLogs,
                 )
 
-                if (!isQuantum) {
-                    // Tab 3: Profile / Settings — Hyper only
-                    BottomNavItem(
-                        selected = activeTab == MainTab.PROFILE,
-                        label = "Profile",
-                        activeColor = activeTint,
-                        tag = "nav_profile_button",
-                        icon = { _, tint ->
-                            Icon(
-                                imageVector = Icons.Rounded.Tune,
-                                contentDescription = "Profile",
-                                tint = tint,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        },
-                        onClick = { onSelectTab(MainTab.PROFILE) },
-                    )
-                }
+                // Tab 4: Profile / Settings — both engines. Was Hyper-only;
+                // Quantum shows it too now, so the bottom menus are identical.
+                BottomNavItem(
+                    selected = activeTab == MainTab.PROFILE,
+                    label = "Profile",
+                    activeColor = activeTint,
+                    tag = "nav_profile_button",
+                    icon = { _, tint ->
+                        Icon(
+                            imageVector = Icons.Rounded.Tune,
+                            contentDescription = "Profile",
+                            tint = tint,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    onClick = { onSelectTab(MainTab.PROFILE) },
+                )
             }
         }
     }

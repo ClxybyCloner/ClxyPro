@@ -133,12 +133,6 @@ class MainActivity : ComponentActivity() {
                     onDispose { stop() }
                 }
 
-                androidx.compose.runtime.LaunchedEffect(state.coreId) {
-                    if (state.coreId == "aether") {
-                        activeTab = MainTab.HOME
-                    }
-                }
-
                 // Quick Settings tile tap: run the same toggle the power
                 // button runs (sign-in / serial / VPN consent included),
                 // but only when actually disconnected.
