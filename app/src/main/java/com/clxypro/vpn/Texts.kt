@@ -19,7 +19,7 @@ object Texts {
     // below reuse it.
     private const val EXIT_GUIDE_TITLE_FA = "کشور خروجی چطور کار می‌کنه؟"
 
-    private const val EXIT_GUIDE_BODY_FA = "با کوانتومِ تنها، برنامه خودش سریع‌ترین مسیر رو برات انتخاب می‌کنه. ترافیکت از شبکه‌ی کلادفلر رد می‌شه و با یه آی‌پی تهران میای بیرون — یعنی سایت‌ها تو رو اهل تهران (ایران) می‌بینن و خودت نمی‌تونی کشور دیگه‌ای انتخاب کنی.\n\nاگه «Exit Node» رو روشن کنی، ترافیکت یه قدم اضافه از سایفون رد می‌شه و از کشوری که بالا انتخاب کردی وارد اینترنت می‌شه. سایت‌ها و برنامه‌ها تو رو اهل همون کشور می‌بینن. اگه «سریع‌ترین» رو بزنی، سایفون خودش سریع‌ترین کشور رو برات انتخاب می‌کنه."
+    private const val EXIT_GUIDE_BODY_FA = "با کوانتومِ تنها، برنامه خودش سریع‌ترین مسیر رو برات انتخاب می‌کنه. ترافیکت از شبکه‌ی کلادفلر رد می‌شه و با یه آی‌پی تهران میای بیرون — یعنی سایت‌ها تو رو اهل تهران (ایران) می‌بینن و خودت نمی‌تونی کشور دیگه‌ای انتخاب کنی.\n\nاگه «تغییر خروجی ایران» رو روشن کنی، ترافیکت یه قدم اضافه از سایفون رد می‌شه و از کشوری که بالا انتخاب کردی وارد اینترنت می‌شه. سایت‌ها و برنامه‌ها تو رو اهل همون کشور می‌بینن. اگه «سریع‌ترین» رو بزنی، سایفون خودش سریع‌ترین کشور رو برات انتخاب می‌کنه."
 
 
 
@@ -1237,15 +1237,15 @@ object Texts {
 
         get() = p(
 
-            "Exit Node",
+            "Change Iran Exit",
 
-            "گره خروجی",
+            "تغییر خروجی ایران",
 
-            "Выходной узел",
+            "Сменить выход из Ирана",
 
-            "Nodo de salida",
+            "Cambiar la salida de Irán",
 
-            "出口节点"
+            "更改伊朗出口"
 
         )
 
@@ -1332,15 +1332,15 @@ object Texts {
 
         get() = p(
 
-            "With Quantum alone, the app picks the fastest route for you. Your traffic goes through Cloudflare's network and comes out with an IP that shows as Tehran, Iran — so websites see you as being in Tehran, and you can't pick another country.\n\nTurn Exit Node on and your traffic takes one extra hop through Psiphon, then comes out onto the internet from the country you pick above. Websites and apps then see you as being in that country. Choose Fastest (auto) and Psiphon picks the quickest country for you.",
+            "With Quantum alone, the app picks the fastest route for you. Your traffic goes through Cloudflare's network and comes out with an IP that shows as Tehran, Iran — so websites see you as being in Tehran, and you can't pick another country.\n\nTurn on Change Iran Exit and your traffic takes one extra hop through Psiphon, then comes out onto the internet from the country you pick above. Websites and apps then see you as being in that country. Choose Fastest (auto) and Psiphon picks the quickest country for you.",
 
             EXIT_GUIDE_BODY_FA,
 
-            "С одним только Quantum приложение само выбирает самый быстрый маршрут. Ваш трафик идёт через сеть Cloudflare и выходит с IP, который определяется как Тегеран, Иран, — сайты видят вас как жителя Тегерана, и выбрать другую страну нельзя.\n\nВключите Exit Node, и ваш трафик пройдёт ещё один шаг через Psiphon, а в интернет выйдет из страны, которую вы выбрали выше. Сайты и приложения будут видеть вас как жителя этой страны. Выберите «Самый быстрый», и Psiphon сам подберёт самую быструю страну.",
+            "С одним только Quantum приложение само выбирает самый быстрый маршрут. Ваш трафик идёт через сеть Cloudflare и выходит с IP, который определяется как Тегеран, Иран, — сайты видят вас как жителя Тегерана, и выбрать другую страну нельзя.\n\nВключите «Сменить выход из Ирана», и ваш трафик пройдёт ещё один шаг через Psiphon, а в интернет выйдет из страны, которую вы выбрали выше. Сайты и приложения будут видеть вас как жителя этой страны. Выберите «Самый быстрый», и Psiphon сам подберёт самую быструю страну.",
 
-            "Solo con Quantum, la app elige la ruta más rápida por ti. Tu tráfico pasa por la red de Cloudflare y sale con una IP que se muestra como Teherán, Irán: los sitios web te ven como si estuvieras en Teherán y no puedes elegir otro país.\n\nSi activas el Exit Node, tu tráfico da un paso extra por Psiphon y sale a internet desde el país que elegiste arriba. Los sitios y las apps te verán como si estuvieras en ese país. Si eliges «El más rápido», Psiphon escoge el país más rápido por ti.",
+            "Solo con Quantum, la app elige la ruta más rápida por ti. Tu tráfico pasa por la red de Cloudflare y sale con una IP que se muestra como Teherán, Irán: los sitios web te ven como si estuvieras en Teherán y no puedes elegir otro país.\n\nSi activas «Cambiar la salida de Irán», tu tráfico da un paso extra por Psiphon y sale a internet desde el país que elegiste arriba. Los sitios y las apps te verán como si estuvieras en ese país. Si eliges «El más rápido», Psiphon escoge el país más rápido por ti.",
 
-            "只用 Quantum 时，应用会为你选择最快的路线。你的流量经过 Cloudflare 的网络，出口 IP 显示为伊朗德黑兰——网站会认为你在德黑兰，你无法选择其他国家。\n\n打开 Exit Node 后，你的流量会多经过 Psiphon 一步，再从你上面选择的国家进入互联网。网站和应用会认为你就在那个国家。选择「最快」，Psiphon 会为你挑选最快的国家。"
+            "只用 Quantum 时，应用会为你选择最快的路线。你的流量经过 Cloudflare 的网络，出口 IP 显示为伊朗德黑兰——网站会认为你在德黑兰，你无法选择其他国家。\n\n打开「更改伊朗出口」后，你的流量会多经过 Psiphon 一步，再从你上面选择的国家进入互联网。网站和应用会认为你就在那个国家。选择「最快」，Psiphon 会为你挑选最快的国家。"
 
         )
 
