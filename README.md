@@ -30,10 +30,10 @@ newest build.
 
 ## ⬇️ Download
 
-**Latest: 1.5.35**, released November 28, 2026
+**Latest: 1.5.36**, released November 28, 2026
 
-- 📦 [Download the ARM64 APK](https://github.com/ClxybyCloner/ClxyPro/releases/download/v1.5.35/ClxyPro-1.5.35-arm64-v8a.apk)
-- [View the SHA-256 checksum](https://github.com/ClxybyCloner/ClxyPro/releases/download/v1.5.35/SHA256SUMS.txt)
+- 📦 [Download the ARM64 APK](https://github.com/ClxybyCloner/ClxyPro/releases/download/v1.5.36/ClxyPro-1.5.36-arm64-v8a.apk)
+- [View the SHA-256 checksum](https://github.com/ClxybyCloner/ClxyPro/releases/download/v1.5.36/SHA256SUMS.txt)
 - 🗂️ [Browse all releases](https://github.com/ClxybyCloner/ClxyPro/releases)
 
 The source code lives in this repository.
@@ -110,13 +110,13 @@ A subscription is required to use CLXY.
 On a computer, calculate the APK's SHA-256:
 
 ```bash
-sha256sum ClxyPro-1.5.35-arm64-v8a.apk
+sha256sum ClxyPro-1.5.36-arm64-v8a.apk
 ```
 
 Compare the output with this expected hash:
 
 ```text
-3916171bba6987ee8c60fc28f6c85ea30c7de31a0f7e4958def87398eb35e291  ClxyPro-1.5.35-arm64-v8a.apk
+c3c3a5e5b082ef1f80375f2ac05dfde8240c573ac86a7536439fc26dae103b36  ClxyPro-1.5.36-arm64-v8a.apk
 ```
 
 If they match, the file is exactly what we published.
@@ -136,7 +136,7 @@ confirm the install yourself. The app never installs anything behind your back.
 | | |
 |---|---|
 | Package | `com.clxypro.vpn` |
-| Version / version code | `1.5.35` / `57` |
+| Version / version code | `1.5.36` / `58` |
 | Architecture | `arm64-v8a` |
 | Minimum Android | 8.0 (API 26) |
 | Size | 13.5 MB |
