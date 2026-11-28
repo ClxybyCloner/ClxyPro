@@ -124,7 +124,12 @@ class MainActivity : ComponentActivity() {
      *  left for toggle() to handle at the next connect. */
     private fun refreshSerialDays() {
         val hash = Prefs.serialHash
-        if (hash.isEmpty() || Prefs.serialCheckDay == todayDay()) return
+        if (hash.isEmpty()) return
+        // If we already have today's number, nothing to do. But if the
+        // number was never stored — e.g. the day was already checked by
+        // an older version that did not save it — fetch it even though
+        // the day was checked, or the home pill has nothing to show.
+        if (Prefs.serialCheckDay == todayDay() && Prefs.serialDaysLeft >= 0) return
         lifecycleScope.launch(Dispatchers.IO) {
             when (val result = SerialCheck.check(hash)) {
                 is SerialCheck.Result.Active -> {
