@@ -115,6 +115,17 @@ object Prefs {
             prefs().edit().putBoolean("hyper_unlocked", value).apply()
         }
 
+    /** SHA-256 hex of the activated serial (dashes stripped, uppercased).
+     *  Kept so every connect can ask the owner's panel whether this
+     *  serial is still good; only the hash is stored, never the serial
+     *  itself. Empty on devices unlocked before v1.5.35 — those ask for
+     *  the serial once more, on their next connect, to capture it. */
+    var serialHash: String
+        get() = prefs().getString("serial_hash", "") ?: ""
+        set(value) {
+            prefs().edit().putString("serial_hash", value).apply()
+        }
+
     var connectVibration: Boolean
         get() = prefs().getBoolean(KEY_CONNECT_VIBRATION, true)
         set(value) {

@@ -1360,6 +1360,26 @@ object Texts {
 
         )
 
+    /** Shown when the serial dialog reopens because the panel expired the serial. */
+    val serialExpired: String
+        get() = p(
+            "Your serial has expired — the days on your plan ran out. Enter a new serial to connect again.",
+            "سریال شما منقضی شده — روزهای طرح‌تون تموم شده. برای اتصال دوباره یه سریال جدید وارد کنید.",
+            "Срок действия вашего серийного номера истёк — дни тарифа закончились. Введите новый номер, чтобы подключиться снова.",
+            "Tu número de serie caducó — se acabaron los días de tu plan. Introduce uno nuevo para conectarte de nuevo.",
+            "您的序列号已过期 — 套餐天数已用完。请输入新的序列号重新连接。"
+        )
+
+    /** Shown when the serial dialog reopens because the owner locked the serial. */
+    val serialRevoked: String
+        get() = p(
+            "Your serial was locked. Enter a new serial to connect again.",
+            "سریال شما قفل شده. برای اتصال دوباره یه سریال جدید وارد کنید.",
+            "Ваш серийный номер заблокирован. Введите новый номер, чтобы подключиться снова.",
+            "Tu número de serie fue bloqueado. Introduce uno nuevo para conectarte de nuevo.",
+            "您的序列号已被锁定。请输入新的序列号重新连接。"
+        )
+
     /** True when the app itself is already showing Persian. */
     val isFa: Boolean
         get() = language == AppLanguage.FA

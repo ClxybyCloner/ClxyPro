@@ -34,9 +34,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.lifecycleScope
+import com.clxypro.vpn.Texts
 import com.clxypro.vpn.core.AppState
 import com.clxypro.vpn.core.GithubUpdates
 import com.clxypro.vpn.core.Prefs
+import com.clxypro.vpn.core.QuantumSerial
+import com.clxypro.vpn.core.SerialCheck
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.clxypro.vpn.service.ProxyService
 import com.clxypro.vpn.service.TunnelVpnService
 import com.clxypro.vpn.ui.ClxyBottomNavBar
@@ -64,6 +71,10 @@ class MainActivity : ComponentActivity() {
     /** Which engine the open serial dialog is for: Hyper asks separately
      *  from Quantum, even though both take the same serials. */
     private val serialForHyper = mutableStateOf(false)
+
+    /** Why the serial dialog reopened after an unlock (expired / locked
+     *  serial) — shown inside the dialog so the user knows what happened. */
+    private val serialNotice = mutableStateOf<String?>(null)
 
     /** Bumped whenever an auto-connect request arrives (tile tap). */
     private val autoConnectTick = mutableStateOf(0)
@@ -174,15 +185,22 @@ class MainActivity : ComponentActivity() {
                         ) {
                             if (serialDialogOpen.value) {
                                 QuantumSerialDialog(
-                                    onDismiss = { serialDialogOpen.value = false },
-                                    onValid = {
+                                    onDismiss = {
+                                        serialDialogOpen.value = false
+                                        serialNotice.value = null
+                                    },
+                                    onValid = { code ->
                                         if (serialForHyper.value) Prefs.hyperUnlocked = true
                                         else Prefs.quantumUnlocked = true
+                                        // Only the hash is kept — the serial itself is never stored.
+                                        Prefs.serialHash = QuantumSerial.hashOf(code)
                                     },
                                     onActivated = {
                                         serialDialogOpen.value = false
+                                        serialNotice.value = null
                                         toggle { activeTab = MainTab.PROFILE }
                                     },
+                                    notice = serialNotice.value,
                                 )
                             }
                             if (logsOpen) {
@@ -250,16 +268,52 @@ class MainActivity : ComponentActivity() {
         // Both take the same serials, but a Quantum unlock does not unlock
         // Hyper (and vice versa) — so Hyper always asks, even on a device
         // that already unlocked Quantum.
-        if (coreId == "firefox" && !Prefs.hyperUnlocked) {
+        // A device unlocked before v1.5.35 has no stored serial hash, so
+        // it asks once more, on its next connect, to capture it — after
+        // that, the online check below takes over.
+        if (coreId == "firefox" && (!Prefs.hyperUnlocked || Prefs.serialHash.isEmpty())) {
             serialForHyper.value = true
             serialDialogOpen.value = true
             return
         }
-        if (coreId == "aether" && !Prefs.quantumUnlocked) {
+        if (coreId == "aether" && (!Prefs.quantumUnlocked || Prefs.serialHash.isEmpty())) {
             serialForHyper.value = false
             serialDialogOpen.value = true
             return
         }
+        // Already unlocked: ask the owner's panel whether this serial is
+        // still good. Expired (days ran out) or revoked (owner locked it)
+        // clears the unlock and asks for a new serial; no verdict — the
+        // panel unreachable, rate-limited, or not knowing this serial yet —
+        // connects with the cached unlock, so a server hiccup never bricks
+        // a user.
+        lifecycleScope.launch(Dispatchers.IO) {
+            when (val result = SerialCheck.check(Prefs.serialHash)) {
+                is SerialCheck.Result.Active -> {
+                    AppState.log("serial: active, ${result.daysLeft} days left")
+                    withContext(Dispatchers.Main) { startSession(coreId) }
+                }
+                is SerialCheck.Result.Locked -> {
+                    AppState.log("serial: ${result.reason}, unlock cleared")
+                    Prefs.hyperUnlocked = false
+                    Prefs.quantumUnlocked = false
+                    Prefs.serialHash = ""
+                    withContext(Dispatchers.Main) {
+                        serialNotice.value =
+                            if (result.reason == "expired") Texts.serialExpired
+                            else Texts.serialRevoked
+                        serialForHyper.value = coreId == "firefox"
+                        serialDialogOpen.value = true
+                    }
+                }
+                SerialCheck.Result.Unknown -> {
+                    withContext(Dispatchers.Main) { startSession(coreId) }
+                }
+            }
+        }
+    }
+
+    private fun startSession(coreId: String) {
         askNotifications()
         if (Prefs.mode == AppState.Mode.PROXY) {
             ProxyService.start(this, coreId)

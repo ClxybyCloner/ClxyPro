@@ -26,12 +26,19 @@ object QuantumSerial {
         "d608322903567e9ad2e4971aacdd2042a47b79908b94662cd1f1321e76cd1d08",
     )
 
+    /** SHA-256 hex of the normalized serial (dashes stripped, uppercased).
+     *  The app stores this hash — never the serial itself — so every
+     *  connect can ask the panel whether the serial is still good. */
+    fun hashOf(code: String): String {
+        val normalized = code.trim().uppercase().filter { it.isLetterOrDigit() }
+        return MessageDigest.getInstance("SHA-256")
+            .digest(normalized.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+    }
+
     fun isValid(code: String): Boolean {
         val normalized = code.trim().uppercase().filter { it.isLetterOrDigit() }
         if (normalized.isEmpty()) return false
-        val hash = MessageDigest.getInstance("SHA-256")
-            .digest(normalized.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
-        return hash in VALID_HASHES
+        return hashOf(code) in VALID_HASHES
     }
 }

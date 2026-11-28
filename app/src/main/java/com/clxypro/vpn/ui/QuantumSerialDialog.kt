@@ -49,15 +49,18 @@ import com.clxypro.vpn.ui.theme.ClxyColors
 @Composable
 fun QuantumSerialDialog(
     onDismiss: () -> Unit,
-    onValid: () -> Unit,
+    onValid: (String) -> Unit,
     onActivated: () -> Unit,
+    /** Shown when the dialog reopened because the panel killed the old
+     *  serial (expired / locked) — so the user knows why they are asked again. */
+    notice: String? = null,
 ) {
     var code by remember { mutableStateOf("") }
     var invalid by remember { mutableStateOf(false) }
 
     fun submit() {
         if (QuantumSerial.isValid(code)) {
-            onValid()
+            onValid(code)
             onActivated()
         } else {
             invalid = true
@@ -114,6 +117,14 @@ fun QuantumSerialDialog(
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (notice != null) {
+                Text(
+                    text = notice,
+                    fontSize = 11.5.sp,
+                    color = ClxyColors.RedDisconnectStart,
+                    textAlign = TextAlign.Center,
+                )
+            }
             if (invalid) {
                 Text(
                     text = "Invalid serial number. Please check it and try again.",
