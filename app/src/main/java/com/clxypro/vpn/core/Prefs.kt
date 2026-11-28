@@ -116,14 +116,23 @@ object Prefs {
         }
 
     /** SHA-256 hex of the activated serial (dashes stripped, uppercased).
-     *  Kept so every connect can ask the owner's panel whether this
-     *  serial is still good; only the hash is stored, never the serial
-     *  itself. Empty on devices unlocked before v1.5.35 — those ask for
-     *  the serial once more, on their next connect, to capture it. */
+     *  Kept so the once-a-day check can ask the owner's panel whether
+     *  this serial is still good; only the hash is stored, never the
+     *  serial itself. Empty on devices unlocked before v1.5.35 — those
+     *  ask for the serial once more, on their next connect, to capture it. */
     var serialHash: String
         get() = prefs().getString("serial_hash", "") ?: ""
         set(value) {
             prefs().edit().putString("serial_hash", value).apply()
+        }
+
+    /** Local calendar day (year*1000 + day-of-year) of the last completed
+     *  online serial check. The check runs at most once a day — on the
+     *  first connect after midnight — so it never slows connects down. */
+    var serialCheckDay: Long
+        get() = prefs().getLong("serial_check_day", 0L)
+        set(value) {
+            prefs().edit().putLong("serial_check_day", value).apply()
         }
 
     var connectVibration: Boolean

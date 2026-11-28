@@ -7,9 +7,11 @@ import org.json.JSONObject
 /**
  * Online serial check against the owner's hesabchi panel Worker
  * (hesabchi.ashkanfadaeii.workers.dev, /api/serial/check). The app asks
- * on every connect whether the stored serial is still good: a serial
- * whose member ran out of days comes back "expired", one the owner
- * locked "revoked" — either clears the unlock and asks for a new serial.
+ * at most once a day — on the first connect after midnight — whether
+ * the stored serial is still good: a serial whose member ran out of
+ * days comes back "expired", one the owner locked "revoked" — either
+ * clears the unlock and asks for a new serial. Every other connect
+ * that day goes straight through, so the check never slows the app down.
  *
  * Only the SHA-256 hash of the serial leaves the device, as the `hash`
  * query param; the serial itself is never sent or stored.

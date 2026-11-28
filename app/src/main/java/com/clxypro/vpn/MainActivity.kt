@@ -281,16 +281,23 @@ class MainActivity : ComponentActivity() {
             serialDialogOpen.value = true
             return
         }
-        // Already unlocked: ask the owner's panel whether this serial is
-        // still good. Expired (days ran out) or revoked (owner locked it)
-        // clears the unlock and asks for a new serial; no verdict — the
-        // panel unreachable, rate-limited, or not knowing this serial yet —
-        // connects with the cached unlock, so a server hiccup never bricks
-        // a user.
+        // Already unlocked: the panel check runs at most once a day — on
+        // the first connect after midnight — so it never slows connects
+        // down. Every other connect today goes straight through.
+        val hash = Prefs.serialHash
+        if (hash.isEmpty()) {
+            startSession(coreId)
+            return
+        }
+        if (Prefs.serialCheckDay == todayDay()) {
+            startSession(coreId)
+            return
+        }
         lifecycleScope.launch(Dispatchers.IO) {
-            when (val result = SerialCheck.check(Prefs.serialHash)) {
+            when (val result = SerialCheck.check(hash)) {
                 is SerialCheck.Result.Active -> {
                     AppState.log("serial: active, ${result.daysLeft} days left")
+                    Prefs.serialCheckDay = todayDay()
                     withContext(Dispatchers.Main) { startSession(coreId) }
                 }
                 is SerialCheck.Result.Locked -> {
@@ -307,10 +314,21 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 SerialCheck.Result.Unknown -> {
+                    // No verdict today (offline / rate-limited / unknown):
+                    // count the day as checked, so the next connects today
+                    // are instant, and try again tomorrow.
+                    Prefs.serialCheckDay = todayDay()
                     withContext(Dispatchers.Main) { startSession(coreId) }
                 }
             }
         }
+    }
+
+    /** Local calendar day, for the once-a-day serial check. */
+    private fun todayDay(): Long {
+        val cal = java.util.Calendar.getInstance()
+        return cal.get(java.util.Calendar.YEAR) * 1000L +
+            cal.get(java.util.Calendar.DAY_OF_YEAR)
     }
 
     private fun startSession(coreId: String) {
