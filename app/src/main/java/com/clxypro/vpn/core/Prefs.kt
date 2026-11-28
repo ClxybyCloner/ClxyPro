@@ -135,6 +135,15 @@ object Prefs {
             prefs().edit().putLong("serial_check_day", value).apply()
         }
 
+    /** Remaining days on the serial, from the last panel check (-1 = no
+     *  check has ever returned a number). Shown on the home screen and
+     *  refreshed together with the once-a-day check, after midnight. */
+    var serialDaysLeft: Int
+        get() = prefs().getInt("serial_days_left", -1)
+        set(value) {
+            prefs().edit().putInt("serial_days_left", value).apply()
+        }
+
     var connectVibration: Boolean
         get() = prefs().getBoolean(KEY_CONNECT_VIBRATION, true)
         set(value) {

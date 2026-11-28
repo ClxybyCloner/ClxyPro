@@ -114,6 +114,28 @@ class MainActivity : ComponentActivity() {
         AppLocale.sync(this)
         // Every app open looks for a newer release (throttled inside).
         GithubUpdates.maybeCheck(this)
+        // The home screen shows the serial's remaining days; refresh it
+        // after midnight so the number is never a day stale.
+        refreshSerialDays()
+    }
+
+    /** Refreshes the displayed remaining days after midnight (once a day,
+     *  in the background, never blocking a connect). A Locked verdict is
+     *  left for toggle() to handle at the next connect. */
+    private fun refreshSerialDays() {
+        val hash = Prefs.serialHash
+        if (hash.isEmpty() || Prefs.serialCheckDay == todayDay()) return
+        lifecycleScope.launch(Dispatchers.IO) {
+            when (val result = SerialCheck.check(hash)) {
+                is SerialCheck.Result.Active -> {
+                    Prefs.serialCheckDay = todayDay()
+                    Prefs.serialDaysLeft = result.daysLeft
+                    AppState.update { it.copy(serialDaysLeft = result.daysLeft) }
+                }
+                SerialCheck.Result.Unknown -> Prefs.serialCheckDay = todayDay()
+                is SerialCheck.Result.Locked -> Unit
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -126,6 +148,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Restore the cached remaining-days number so the home pill shows
+        // it before the first check of the day runs.
+        AppState.update { it.copy(serialDaysLeft = Prefs.serialDaysLeft) }
         if (intent.getBooleanExtra(EXTRA_AUTO_CONNECT, false)) {
             autoConnectTick.value = 1
         }
@@ -302,6 +327,8 @@ class MainActivity : ComponentActivity() {
                 is SerialCheck.Result.Active -> {
                     AppState.log("serial: active, ${result.daysLeft} days left")
                     Prefs.serialCheckDay = todayDay()
+                    Prefs.serialDaysLeft = result.daysLeft
+                    AppState.update { it.copy(serialDaysLeft = result.daysLeft) }
                     withContext(Dispatchers.Main) { startSession(coreId) }
                 }
                 is SerialCheck.Result.Locked -> {

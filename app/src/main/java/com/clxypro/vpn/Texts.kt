@@ -1380,6 +1380,15 @@ object Texts {
             "您的序列号已被锁定。请输入新的序列号重新连接。"
         )
 
+    /** Remaining days on the serial, shown on the home screen. */
+    fun daysLeftText(days: Int): String = p(
+        "$days days left",
+        "$days روز مانده",
+        "Осталось дней: $days",
+        "Quedan $days días",
+        "剩余 $days 天",
+    )
+
     /** True when the app itself is already showing Persian. */
     val isFa: Boolean
         get() = language == AppLanguage.FA

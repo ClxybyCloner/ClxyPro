@@ -51,6 +51,8 @@ object AppState {
         val exitPlace: String = "",
         /** The device's own country from its public IP (OriginCountry); "AUTO" draws the generic globe. */
         val originCode: String = "AUTO",
+        /** Remaining days on the serial, from the last panel check; -1 until a check returns one. */
+        val serialDaysLeft: Int = -1,
         /** A newer release than the installed one, null until a check finds it. */
         val update: GithubUpdates.Release? = null
     )

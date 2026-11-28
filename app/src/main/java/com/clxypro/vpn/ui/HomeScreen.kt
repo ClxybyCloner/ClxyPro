@@ -522,6 +522,28 @@ fun HomeScreen(
                 }
             }
 
+            // Remaining days on the serial, synced with the once-a-day
+            // panel check — hidden until a check has ever returned a number.
+            if (state.serialDaysLeft >= 0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(ClxyColors.CardSurface)
+                        .border(1.dp, ClxyColors.CyanGlow.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                        .testTag("home_days_left"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = Texts.daysLeftText(state.serialDaysLeft),
+                        color = ClxyColors.TextPrimary,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
+
             // Flexible Dotted World Map + Main Power Button
             BoxWithConstraints(
                 modifier = Modifier
