@@ -25,6 +25,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,7 +40,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.clxypro.vpn.core.QuantumSerial
+import com.clxypro.vpn.core.SerialCheck
 import com.clxypro.vpn.ui.theme.ClxyColors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * First-connect serial prompt, shared by Hyper and Quantum: both take the
@@ -57,13 +63,33 @@ fun QuantumSerialDialog(
 ) {
     var code by remember { mutableStateOf("") }
     var invalid by remember { mutableStateOf(false) }
+    var checking by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     fun submit() {
+        if (checking) return
+        // One of the built-in serials: accepted offline, no network needed.
         if (QuantumSerial.isValid(code)) {
             onValid(code)
             onActivated()
-        } else {
-            invalid = true
+            return
+        }
+        // Anything else (e.g. a serial created in the panel): ask the
+        // panel — the app cannot know it from its built-in list alone.
+        val submitted = code
+        checking = true
+        invalid = false
+        scope.launch(Dispatchers.IO) {
+            val ok = SerialCheck.isActivatable(submitted)
+            withContext(Dispatchers.Main) {
+                checking = false
+                if (ok) {
+                    onValid(submitted)
+                    onActivated()
+                } else {
+                    invalid = true
+                }
+            }
         }
     }
 
@@ -146,7 +172,7 @@ fun QuantumSerialDialog(
                 }
                 Button(
                     onClick = { submit() },
-                    enabled = code.isNotBlank(),
+                    enabled = code.isNotBlank() && !checking,
                     colors = ButtonDefaults.buttonColors(containerColor = ClxyColors.BlueDeep),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.weight(1f).height(46.dp),

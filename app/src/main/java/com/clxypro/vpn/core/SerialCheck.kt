@@ -60,4 +60,14 @@ object SerialCheck {
             Result.Unknown
         }
     }
+
+    /** Activation check: true when the serial may unlock the device —
+     *  either it is one of the built-in serials (accepted offline), or
+     *  the panel says it is active (e.g. a serial created in the panel,
+     *  which the app cannot know from its built-in list alone).
+     *  Blocking — call from a background thread. */
+    fun isActivatable(code: String): Boolean {
+        if (QuantumSerial.isValid(code)) return true
+        return check(QuantumSerial.hashOf(code)) is Result.Active
+    }
 }
