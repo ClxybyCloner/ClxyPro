@@ -60,34 +60,37 @@ fun QuantumSerialDialog(
     /** Shown when the dialog reopened because the panel killed the old
      *  serial (expired / locked) — so the user knows why they are asked again. */
     notice: String? = null,
+    /** Stable per-device id (ANDROID_ID), sent to the panel at activation
+     *  so it can count distinct devices against the serial's max uses. */
+    deviceId: String = "",
 ) {
     var code by remember { mutableStateOf("") }
     var invalid by remember { mutableStateOf(false) }
+    var limitReached by remember { mutableStateOf(false) }
     var checking by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun submit() {
         if (checking) return
-        // One of the built-in serials: accepted offline, no network needed.
-        if (QuantumSerial.isValid(code)) {
-            onValid(code)
-            onActivated()
-            return
-        }
-        // Anything else (e.g. a serial created in the panel): ask the
-        // panel — the app cannot know it from its built-in list alone.
+        // One activation path for every serial: built-in ones are
+        // accepted offline, panel serials must be active on the panel,
+        // and either way this device is registered against the serial's
+        // max uses (see SerialCheck.activate).
         val submitted = code
         checking = true
         invalid = false
+        limitReached = false
         scope.launch(Dispatchers.IO) {
-            val ok = SerialCheck.isActivatable(submitted)
+            val result = SerialCheck.activate(submitted, deviceId)
             withContext(Dispatchers.Main) {
                 checking = false
-                if (ok) {
-                    onValid(submitted)
-                    onActivated()
-                } else {
-                    invalid = true
+                when (result) {
+                    SerialCheck.Activation.Valid -> {
+                        onValid(submitted)
+                        onActivated()
+                    }
+                    SerialCheck.Activation.Invalid -> invalid = true
+                    is SerialCheck.Activation.LimitReached -> limitReached = true
                 }
             }
         }
@@ -154,6 +157,14 @@ fun QuantumSerialDialog(
             if (invalid) {
                 Text(
                     text = "Invalid serial number. Please check it and try again.",
+                    fontSize = 11.5.sp,
+                    color = ClxyColors.RedDisconnectStart,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            if (limitReached) {
+                Text(
+                    text = "This serial has reached its usage limit. Ask the owner for a new serial.",
                     fontSize = 11.5.sp,
                     color = ClxyColors.RedDisconnectStart,
                     textAlign = TextAlign.Center,

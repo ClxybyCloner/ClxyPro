@@ -25,6 +25,8 @@ import org.json.JSONObject
 object SerialCheck {
     private const val CHECK_URL =
         "https://hesabchi.ashkanfadaeii.workers.dev/api/serial/check?hash="
+    private const val ACTIVATE_URL =
+        "https://hesabchi.ashkanfadaeii.workers.dev/api/serial/activate?hash="
     private const val TIMEOUT_MS = 4000
 
     sealed interface Result {
@@ -61,13 +63,70 @@ object SerialCheck {
         }
     }
 
-    /** Activation check: true when the serial may unlock the device —
-     *  either it is one of the built-in serials (accepted offline), or
-     *  the panel says it is active (e.g. a serial created in the panel,
-     *  which the app cannot know from its built-in list alone).
-     *  Blocking — call from a background thread. */
-    fun isActivatable(code: String): Boolean {
-        if (QuantumSerial.isValid(code)) return true
-        return check(QuantumSerial.hashOf(code)) is Result.Active
+    /** Activation outcome — what the dialog shows after the user submits. */
+    sealed interface Activation {
+        /** The serial may unlock this device. */
+        data object Valid : Activation
+
+        /** No such serial (or expired/revoked) — show "invalid". */
+        data object Invalid : Activation
+
+        /** The serial exists but its usage limit is spent — show the limit message. */
+        data class LimitReached(val uses: Int, val maxUses: Int) : Activation
+    }
+
+    /**
+     * Full activation check for a submitted serial. A built-in serial is
+     * accepted offline; anything else must be active on the panel first.
+     * Either way this device is then registered with the panel
+     * (POST /api/serial/activate) — the panel counts distinct devices
+     * against the serial's max uses, so a code shared with friends stops
+     * working once its limit is spent. A re-activation from the same
+     * device (e.g. after reinstalling) succeeds without burning a use.
+     * When the panel cannot be reached, the activation still goes through
+     * (grace) — the limit only bites when the panel answers.
+     * Blocking — call from a background thread.
+     */
+    fun activate(code: String, deviceId: String): Activation {
+        val hash = QuantumSerial.hashOf(code)
+        if (!QuantumSerial.isValid(code) && check(hash) !is Result.Active) {
+            return Activation.Invalid
+        }
+        return when (val r = registerActivation(hash, deviceId)) {
+            is RegisterResult.LimitReached -> Activation.LimitReached(r.uses, r.maxUses)
+            else -> Activation.Valid
+        }
+    }
+
+    private sealed interface RegisterResult {
+        data object Registered : RegisterResult
+        data class LimitReached(val uses: Int, val maxUses: Int) : RegisterResult
+        data object Unknown : RegisterResult
+    }
+
+    /** Registers this device for the serial; see activate(). */
+    private fun registerActivation(hash: String, deviceId: String): RegisterResult {
+        return try {
+            val encoded = java.net.URLEncoder.encode(deviceId, "UTF-8")
+            val conn = (URL("$ACTIVATE_URL$hash&device=$encoded").openConnection()
+                as HttpURLConnection).apply {
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
+                requestMethod = "POST"
+                setRequestProperty("Accept", "application/json")
+            }
+            if (conn.responseCode != HttpURLConnection.HTTP_OK) return RegisterResult.Unknown
+            val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+            when {
+                json.optBoolean("ok", false) -> RegisterResult.Registered
+                json.optString("reason", "") == "limit_reached" ->
+                    RegisterResult.LimitReached(
+                        json.optInt("uses", 0), json.optInt("max_uses", 0)
+                    )
+                else -> RegisterResult.Unknown
+            }
+        } catch (_: Exception) {
+            RegisterResult.Unknown
+        }
     }
 }

@@ -189,6 +189,10 @@ class MainActivity : ComponentActivity() {
                                         serialDialogOpen.value = false
                                         serialNotice.value = null
                                     },
+                                    deviceId = android.provider.Settings.Secure.getString(
+                                        contentResolver,
+                                        android.provider.Settings.Secure.ANDROID_ID,
+                                    ) ?: "",
                                     onValid = { code ->
                                         if (serialForHyper.value) Prefs.hyperUnlocked = true
                                         else Prefs.quantumUnlocked = true
