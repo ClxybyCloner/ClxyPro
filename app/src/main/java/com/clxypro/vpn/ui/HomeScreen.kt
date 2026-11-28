@@ -104,6 +104,7 @@ fun HomeScreen(
     onOpenServers: () -> Unit,
     onOpenSignIn: () -> Unit,
     onOpenLogs: () -> Unit,
+    onRefreshDays: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -524,19 +525,33 @@ fun HomeScreen(
 
             // Remaining days on the serial, synced with the once-a-day
             // panel check — hidden until a check has ever returned a number.
+            // Tapping it asks the panel right now, so a days change made
+            // in the panel shows up immediately instead of tomorrow.
             if (state.serialDaysLeft >= 0) {
+                var refreshingDays by remember { mutableStateOf(false) }
+                LaunchedEffect(state.serialDaysLeft) { refreshingDays = false }
+                LaunchedEffect(refreshingDays) {
+                    if (refreshingDays) {
+                        delay(4000)
+                        refreshingDays = false
+                    }
+                }
                 Spacer(modifier = Modifier.height(10.dp))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
                         .background(ClxyColors.CardSurface)
                         .border(1.dp, ClxyColors.CyanGlow.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                        .clickable(enabled = !refreshingDays) {
+                            refreshingDays = true
+                            onRefreshDays()
+                        }
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                         .testTag("home_days_left"),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = Texts.daysLeftText(state.serialDaysLeft),
+                        text = if (refreshingDays) "…" else Texts.daysLeftText(state.serialDaysLeft),
                         color = ClxyColors.TextPrimary,
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Medium,

@@ -143,6 +143,42 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Forced refresh of the remaining days, from the home pill tap.
+     *  The once-a-day gate exists so panel edits mid-day do not show
+     *  until tomorrow — tapping the pill asks the panel right now, in
+     *  the background, without touching any connect. A Locked verdict
+     *  clears the unlock exactly like toggle() does at connect time. */
+    private fun refreshSerialDaysNow() {
+        val hash = Prefs.serialHash
+        if (hash.isEmpty()) return
+        lifecycleScope.launch(Dispatchers.IO) {
+            when (val result = SerialCheck.check(hash)) {
+                is SerialCheck.Result.Active -> {
+                    AppState.log("serial: manual refresh, ${result.daysLeft} days left")
+                    Prefs.serialCheckDay = todayDay()
+                    Prefs.serialDaysLeft = result.daysLeft
+                    AppState.update { it.copy(serialDaysLeft = result.daysLeft) }
+                }
+                is SerialCheck.Result.Locked -> {
+                    AppState.log("serial: ${result.reason}, unlock cleared")
+                    Prefs.hyperUnlocked = false
+                    Prefs.quantumUnlocked = false
+                    Prefs.serialHash = ""
+                    Prefs.serialDaysLeft = -1
+                    AppState.update { it.copy(serialDaysLeft = -1) }
+                    withContext(Dispatchers.Main) {
+                        serialNotice.value =
+                            if (result.reason == "expired") Texts.serialExpired
+                            else Texts.serialRevoked
+                        serialForHyper.value = AppState.state.coreId == "firefox"
+                        serialDialogOpen.value = true
+                    }
+                }
+                SerialCheck.Result.Unknown -> Unit
+            }
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -259,6 +295,7 @@ class MainActivity : ComponentActivity() {
                                                 webSignIn.launch(Intent(this@MainActivity, SignInActivity::class.java))
                                             },
                                             onOpenLogs = { logsOpen = true },
+                                            onRefreshDays = { refreshSerialDaysNow() },
                                         )
                                         MainTab.SERVERS -> ServersScreen(
                                             state = state,
